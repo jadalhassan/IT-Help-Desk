@@ -1,6 +1,0 @@
-Jad Al Hassan
-Concerning the environment setup, I chose:
-Frontend: React
-Backend: ASP.NET
-Database: PostgreSQL
-GitHub link: https://github.com/jadalhassan/IT-Help-Desk
