@@ -4,6 +4,7 @@
   "scripts": {
     "dev": "npm --prefix frontend run dev",
     "build": "npm --prefix frontend run build",
-    "preview": "npm --prefix frontend run preview"
+    "preview": "npm --prefix frontend run preview",
+    "deploy": "git commit --allow-empty -m \"Trigger GitHub Pages deployment\" && git push origin main"
   }
 }
