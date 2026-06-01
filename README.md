@@ -41,7 +41,7 @@ Notes:
 - Replace `Jwt:Secret` with a long random value before production.
 
 ## 4) Frontend setup
-1. Open terminal in `frontend`
+1. Open terminal in project root or `frontend`
 2. Install + run:
 ```powershell
 npm install
@@ -49,8 +49,24 @@ npm run dev
 ```
 3. Open `http://localhost:5173`
 
+Notes:
+- From project root, `npm run dev` proxies to `frontend` automatically.
+- If you run commands inside `frontend`, use `npm install` once there too.
+
 If backend URL differs from `https://localhost:7243`, edit:
 - `frontend/src/api.js` (`API_BASE`)
+
+## 7) Deploy frontend to GitHub Pages
+This repo is configured to deploy `frontend` automatically using GitHub Actions:
+- Workflow file: `.github/workflows/deploy-frontend-pages.yml`
+- Trigger: push to `main`
+
+Setup required once in GitHub:
+1. Go to `Settings > Pages` and set `Source` to `GitHub Actions`.
+2. (Optional but recommended) add repository variable `VITE_API_BASE` under `Settings > Secrets and variables > Actions > Variables` with your deployed backend URL (example: `https://api.example.com/api`).
+
+After you push to `main`, the site will publish at:
+- `https://jadalhassan.github.io/IT-Help-Desk/`
 
 ## 5) Seed credentials
 - Admin: `admin@helpdesk.local` / `Admin@123`
