@@ -24,4 +24,18 @@ public class Ticket
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+
+    public int CreatorUserId { get; set; }
+
+    public User? CreatorUser { get; set; }
+
+    public int? AssignedAgentId { get; set; }
+
+    public User? AssignedAgent { get; set; }
+
+    public List<TicketComment> Comments { get; set; } = [];
+
+    public List<ActivityLog> ActivityLogs { get; set; } = [];
+
+    public List<TicketStatusHistory> StatusHistory { get; set; } = [];
 }

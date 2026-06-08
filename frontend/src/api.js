@@ -1,9 +1,11 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://localhost:7243/api';
+const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5088/api';
 
 async function request(path, options = {}) {
+  const token = localStorage.getItem('helpdesk_token');
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
@@ -22,8 +24,21 @@ async function request(path, options = {}) {
   return data;
 }
 
-export function getTickets(category = 'All') {
-  const query = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
+export function login(credentials) {
+  return request('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(credentials),
+  });
+}
+
+export function getTickets(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value && value !== 'All') {
+      params.set(key, value);
+    }
+  });
+  const query = params.toString() ? `?${params}` : '';
   return request(`/tickets${query}`);
 }
 
@@ -45,6 +60,27 @@ export function updateTicket(id, ticket) {
   });
 }
 
+export function assignTicket(id, agentUserId) {
+  return request(`/tickets/${id}/assign`, {
+    method: 'POST',
+    body: JSON.stringify({ agentUserId }),
+  });
+}
+
+export function updateTicketStatus(id, status) {
+  return request(`/tickets/${id}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export function addTicketComment(id, comment) {
+  return request(`/tickets/${id}/comments`, {
+    method: 'POST',
+    body: JSON.stringify(comment),
+  });
+}
+
 export function deleteTicket(id) {
   return request(`/tickets/${id}`, {
     method: 'DELETE',
@@ -53,4 +89,12 @@ export function deleteTicket(id) {
 
 export function getCategories() {
   return request('/categories');
+}
+
+export function getStatuses() {
+  return request('/statuses');
+}
+
+export function getAgents() {
+  return request('/users/agents');
 }

@@ -1,10 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  addTicketComment,
+  assignTicket,
   createTicket,
   deleteTicket,
+  getAgents,
   getCategories,
+  getStatuses,
+  getTicket,
   getTickets,
+  login,
   updateTicket,
+  updateTicketStatus,
 } from './api';
 import './index.css';
 
@@ -17,7 +24,6 @@ const emptyTicket = {
 };
 
 const priorities = ['Low', 'Medium', 'High', 'Urgent'];
-const statuses = ['Open', 'In Progress', 'Resolved', 'Closed'];
 
 function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, {
@@ -26,24 +32,74 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function CategoryFilter({ categories, activeCategory, onChange }) {
+function statusClass(status) {
+  return status.replace(/\s+/g, '').toLowerCase();
+}
+
+function LoginPanel({ onLogin }) {
+  const [form, setForm] = useState({ email: 'admin@helpdesk.local', password: 'Admin@123' });
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+
+    try {
+      const session = await login(form);
+      localStorage.setItem('helpdesk_token', session.token);
+      localStorage.setItem('helpdesk_user', JSON.stringify(session));
+      onLogin(session);
+    } catch (loginError) {
+      setError(loginError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className="filterBar" aria-label="Filter tickets by category">
-      {['All', ...categories].map((category) => (
-        <button
-          className={category === activeCategory ? 'filterButton active' : 'filterButton'}
-          key={category}
-          onClick={() => onChange(category)}
-          type="button"
-        >
-          {category}
+    <main className="loginShell">
+      <form className="panel loginPanel" onSubmit={handleSubmit}>
+        <p className="eyebrow">IT Help Desk</p>
+        <h1>Ticket Management</h1>
+        <label>
+          Email
+          <input
+            name="email"
+            onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+            required
+            type="email"
+            value={form.email}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+            required
+            type="password"
+            value={form.password}
+          />
+        </label>
+        {error && <p className="inlineError">{error}</p>}
+        <button className="primaryButton" disabled={saving} type="submit">
+          {saving ? 'Signing in...' : 'Sign In'}
         </button>
-      ))}
-    </div>
+        <p className="muted compact">
+          Admin: admin@helpdesk.local / Admin@123
+          <br />
+          Agent: agent@helpdesk.local / Agent@123
+          <br />
+          User: user@helpdesk.local / User@123
+        </p>
+      </form>
+    </main>
   );
 }
 
-function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving }) {
+function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving, userRole }) {
   const [form, setForm] = useState(emptyTicket);
   const [formError, setFormError] = useState('');
 
@@ -88,25 +144,12 @@ function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving }) {
 
       <label>
         Title
-        <input
-          name="title"
-          onChange={handleChange}
-          placeholder="Brief summary"
-          required
-          value={form.title}
-        />
+        <input name="title" onChange={handleChange} required value={form.title} />
       </label>
 
       <label>
         Description
-        <textarea
-          name="description"
-          onChange={handleChange}
-          placeholder="Describe the issue or request"
-          required
-          rows="5"
-          value={form.description}
-        />
+        <textarea name="description" onChange={handleChange} required rows="5" value={form.description} />
       </label>
 
       <div className="fieldGrid">
@@ -131,56 +174,73 @@ function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving }) {
             ))}
           </select>
         </label>
-
-        <label>
-          Status
-          <select name="status" onChange={handleChange} value={form.status}>
-            {statuses.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
 
       {formError && <p className="inlineError">{formError}</p>}
 
-      <button className="primaryButton" disabled={saving} type="submit">
+      <button className="primaryButton" disabled={saving || (userRole === 'Agent' && !editingTicket)} type="submit">
         {saving ? 'Saving...' : editingTicket ? 'Update Ticket' : 'Create Ticket'}
       </button>
     </form>
   );
 }
 
-function TicketList({ tickets, selectedTicket, onDelete, onEdit, onSelect }) {
+function TicketFilters({ categories, statuses, filters, onChange }) {
+  return (
+    <div className="filterGrid">
+      <label>
+        Category
+        <select value={filters.category} onChange={(event) => onChange({ ...filters, category: event.target.value })}>
+          {['All', ...categories].map((category) => (
+            <option key={category} value={category}>{category}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Status
+        <select value={filters.status} onChange={(event) => onChange({ ...filters, status: event.target.value })}>
+          {['All', ...statuses].map((status) => (
+            <option key={status} value={status}>{status}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Priority
+        <select value={filters.priority} onChange={(event) => onChange({ ...filters, priority: event.target.value })}>
+          {['All', ...priorities].map((priority) => (
+            <option key={priority} value={priority}>{priority}</option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function TicketList({ tickets, selectedTicket, onDelete, onEdit, onSelect, userRole }) {
   if (!tickets.length) {
-    return <div className="emptyState">No tickets match the selected category.</div>;
+    return <div className="emptyState">No tickets match the selected filters.</div>;
   }
 
   return (
     <div className="ticketList">
       {tickets.map((ticket) => (
-        <article
-          className={selectedTicket?.id === ticket.id ? 'ticketItem selected' : 'ticketItem'}
-          key={ticket.id}
-        >
+        <article className={selectedTicket?.id === ticket.id ? 'ticketItem selected' : 'ticketItem'} key={ticket.id}>
           <button className="ticketSummary" onClick={() => onSelect(ticket)} type="button">
             <span className="ticketTitle">{ticket.title}</span>
             <span className="ticketMeta">
-              {ticket.category} · {ticket.priority} · {formatDate(ticket.createdAtUtc)}
+              {ticket.category} - {ticket.priority} - {ticket.assignedAgentName ?? 'Unassigned'}
             </span>
           </button>
-          <span className={`status ${ticket.status.replace(/\s+/g, '').toLowerCase()}`}>
-            {ticket.status}
-          </span>
+          <span className={`status ${statusClass(ticket.status)}`}>{ticket.status}</span>
           <div className="rowActions">
             <button className="ghostButton" onClick={() => onEdit(ticket)} type="button">
               Edit
             </button>
-            <button className="dangerButton" onClick={() => onDelete(ticket)} type="button">
-              Delete
-            </button>
+            {userRole === 'Admin' && (
+              <button className="dangerButton" onClick={() => onDelete(ticket)} type="button">
+                Delete
+              </button>
+            )}
           </div>
         </article>
       ))}
@@ -188,16 +248,35 @@ function TicketList({ tickets, selectedTicket, onDelete, onEdit, onSelect }) {
   );
 }
 
-function TicketDetail({ ticket }) {
+function TicketDetail({ agents, onAssign, onComment, onStatusChange, statuses, ticket, userRole }) {
+  const [agentId, setAgentId] = useState('');
+  const [status, setStatus] = useState('');
+  const [comment, setComment] = useState({ content: '', visibility: 'Public' });
+
+  useEffect(() => {
+    setAgentId(ticket?.assignedAgentId?.toString() ?? '');
+    setStatus(ticket?.status ?? '');
+    setComment({ content: '', visibility: 'Public' });
+  }, [ticket]);
+
   if (!ticket) {
     return (
       <section className="panel detailPanel">
         <p className="eyebrow">Ticket details</p>
         <h2>Select a Ticket</h2>
-        <p className="muted">Choose a ticket from the list to inspect its description and timeline.</p>
+        <p className="muted">Choose a ticket from the queue to inspect its workflow and history.</p>
       </section>
     );
   }
+
+  const submitComment = async (event) => {
+    event.preventDefault();
+    if (!comment.content.trim()) {
+      return;
+    }
+    await onComment(ticket.id, comment);
+    setComment({ content: '', visibility: 'Public' });
+  };
 
   return (
     <section className="panel detailPanel">
@@ -206,39 +285,130 @@ function TicketDetail({ ticket }) {
           <p className="eyebrow">Ticket #{ticket.id}</p>
           <h2>{ticket.title}</h2>
         </div>
-        <span className={`status ${ticket.status.replace(/\s+/g, '').toLowerCase()}`}>
-          {ticket.status}
-        </span>
+        <span className={`status ${statusClass(ticket.status)}`}>{ticket.status}</span>
       </div>
 
       <p className="description">{ticket.description}</p>
 
       <dl className="detailGrid">
-        <div>
-          <dt>Category</dt>
-          <dd>{ticket.category}</dd>
-        </div>
-        <div>
-          <dt>Priority</dt>
-          <dd>{ticket.priority}</dd>
-        </div>
-        <div>
-          <dt>Created</dt>
-          <dd>{formatDate(ticket.createdAtUtc)}</dd>
-        </div>
-        <div>
-          <dt>Updated</dt>
-          <dd>{formatDate(ticket.updatedAtUtc)}</dd>
-        </div>
+        <div><dt>Requester</dt><dd>{ticket.creatorName ?? 'Unknown'}</dd></div>
+        <div><dt>Agent</dt><dd>{ticket.assignedAgentName ?? 'Unassigned'}</dd></div>
+        <div><dt>Category</dt><dd>{ticket.category}</dd></div>
+        <div><dt>Priority</dt><dd>{ticket.priority}</dd></div>
+        <div><dt>Created</dt><dd>{formatDate(ticket.createdAtUtc)}</dd></div>
+        <div><dt>Updated</dt><dd>{formatDate(ticket.updatedAtUtc)}</dd></div>
       </dl>
+
+      {userRole === 'Admin' && (
+        <div className="actionPanel">
+          <label>
+            Assign agent
+            <select value={agentId} onChange={(event) => setAgentId(event.target.value)}>
+              <option value="">Unassigned</option>
+              {agents.map((agent) => (
+                <option key={agent.id} value={agent.id}>{agent.fullName}</option>
+              ))}
+            </select>
+          </label>
+          <button className="primaryButton" disabled={!agentId} onClick={() => onAssign(ticket.id, Number(agentId))} type="button">
+            Assign
+          </button>
+        </div>
+      )}
+
+      {(userRole === 'Admin' || userRole === 'Agent') && (
+        <div className="actionPanel">
+          <label>
+            Update status
+            <select value={status} onChange={(event) => setStatus(event.target.value)}>
+              {statuses.map((item) => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+          </label>
+          <button className="primaryButton" onClick={() => onStatusChange(ticket.id, status)} type="button">
+            Update
+          </button>
+        </div>
+      )}
+
+      <form className="commentForm" onSubmit={submitComment}>
+        <label>
+          Comment
+          <textarea
+            onChange={(event) => setComment((current) => ({ ...current, content: event.target.value }))}
+            rows="3"
+            value={comment.content}
+          />
+        </label>
+        {(userRole === 'Admin' || userRole === 'Agent') && (
+          <label>
+            Visibility
+            <select
+              onChange={(event) => setComment((current) => ({ ...current, visibility: event.target.value }))}
+              value={comment.visibility}
+            >
+              <option value="Public">Public</option>
+              <option value="Internal">Internal</option>
+            </select>
+          </label>
+        )}
+        <button className="primaryButton" type="submit">Add Comment</button>
+      </form>
+
+      <HistorySection title="Comments" items={ticket.comments} empty="No comments yet." render={(item) => (
+        <>
+          <strong>{item.authorName ?? 'Unknown'}</strong>
+          <span className="historyMeta">{item.visibility} - {formatDate(item.createdAtUtc)}</span>
+          <p>{item.content}</p>
+        </>
+      )} />
+
+      <HistorySection title="Status Timeline" items={ticket.statusHistory} empty="No status changes yet." render={(item) => (
+        <>
+          <strong>{item.oldStatus} to {item.newStatus}</strong>
+          <span className="historyMeta">{item.changedByName ?? 'Unknown'} - {formatDate(item.changedAtUtc)}</span>
+        </>
+      )} />
+
+      <HistorySection title="Audit Trail" items={ticket.activityLogs} empty="No activity recorded yet." render={(item) => (
+        <>
+          <strong>{item.actionType}</strong>
+          <span className="historyMeta">{item.actorName ?? 'Unknown'} - {formatDate(item.createdAtUtc)}</span>
+          <p>{item.description}</p>
+        </>
+      )} />
     </section>
   );
 }
 
+function HistorySection({ empty, items, render, title }) {
+  return (
+    <div className="historySection">
+      <h3>{title}</h3>
+      {items?.length ? (
+        <ul>
+          {items.map((item) => (
+            <li key={item.id}>{render(item)}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">{empty}</p>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
+  const [session, setSession] = useState(() => {
+    const stored = localStorage.getItem('helpdesk_user');
+    return stored ? JSON.parse(stored) : null;
+  });
   const [tickets, setTickets] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [activeCategory, setActiveCategory] = useState('All');
+  const [statuses, setStatuses] = useState([]);
+  const [agents, setAgents] = useState([]);
+  const [filters, setFilters] = useState({ category: 'All', status: 'All', priority: 'All' });
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [editingTicket, setEditingTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -249,15 +419,20 @@ export default function App() {
   const metrics = useMemo(() => ({
     total: tickets.length,
     open: tickets.filter((ticket) => ticket.status === 'Open').length,
+    assigned: tickets.filter((ticket) => ticket.assignedAgentId).length,
     urgent: tickets.filter((ticket) => ticket.priority === 'Urgent').length,
   }), [tickets]);
 
-  const loadTickets = async (category = activeCategory) => {
+  const loadTickets = async () => {
+    if (!session) {
+      return;
+    }
+
     setLoading(true);
     setError('');
 
     try {
-      const data = await getTickets(category);
+      const data = await getTickets(filters);
       setTickets(data);
       setSelectedTicket((current) => data.find((ticket) => ticket.id === current?.id) ?? data[0] ?? null);
     } catch (loadError) {
@@ -270,10 +445,11 @@ export default function App() {
   useEffect(() => {
     async function loadInitialData() {
       try {
-        const categoryData = await getCategories();
+        const [categoryData, statusData] = await Promise.all([getCategories(), getStatuses()]);
         setCategories(categoryData);
-      } catch (categoryError) {
-        setError(categoryError.message);
+        setStatuses(statusData);
+      } catch (loadError) {
+        setError(loadError.message);
       }
     }
 
@@ -281,8 +457,26 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    loadTickets(activeCategory);
-  }, [activeCategory]);
+    async function loadAgents() {
+      if (session?.role !== 'Admin') {
+        setAgents([]);
+        return;
+      }
+      setAgents(await getAgents());
+    }
+
+    loadAgents().catch((agentError) => setError(agentError.message));
+  }, [session]);
+
+  useEffect(() => {
+    loadTickets();
+  }, [filters, session]);
+
+  const refreshAfterChange = async (updatedTicket, successMessage) => {
+    setMessage(successMessage);
+    await loadTickets();
+    setSelectedTicket(updatedTicket);
+  };
 
   const handleSubmit = async (ticket) => {
     setSaving(true);
@@ -294,10 +488,8 @@ export default function App() {
         ? await updateTicket(editingTicket.id, ticket)
         : await createTicket(ticket);
 
-      setMessage(editingTicket ? 'Ticket updated successfully.' : 'Ticket created successfully.');
       setEditingTicket(null);
-      await loadTickets(activeCategory);
-      setSelectedTicket(savedTicket);
+      await refreshAfterChange(savedTicket, editingTicket ? 'Ticket updated successfully.' : 'Ticket created successfully.');
     } catch (saveError) {
       setError(saveError.message);
     } finally {
@@ -306,55 +498,50 @@ export default function App() {
   };
 
   const handleDelete = async (ticket) => {
-    const confirmed = window.confirm(`Delete ticket "${ticket.title}"?`);
-    if (!confirmed) {
+    if (!window.confirm(`Delete ticket "${ticket.title}"?`)) {
       return;
     }
-
-    setError('');
-    setMessage('');
 
     try {
       await deleteTicket(ticket.id);
       setMessage('Ticket deleted successfully.');
-      if (selectedTicket?.id === ticket.id) {
-        setSelectedTicket(null);
-      }
-      if (editingTicket?.id === ticket.id) {
-        setEditingTicket(null);
-      }
-      await loadTickets(activeCategory);
+      setSelectedTicket(null);
+      setEditingTicket(null);
+      await loadTickets();
     } catch (deleteError) {
       setError(deleteError.message);
     }
   };
 
-  const handleEdit = (ticket) => {
-    setEditingTicket(ticket);
-    setSelectedTicket(ticket);
-    setMessage('');
-    setError('');
+  const handleLogout = () => {
+    localStorage.removeItem('helpdesk_token');
+    localStorage.removeItem('helpdesk_user');
+    setSession(null);
+    setTickets([]);
+    setSelectedTicket(null);
   };
+
+  if (!session) {
+    return <LoginPanel onLogin={setSession} />;
+  }
 
   return (
     <main className="appShell">
       <header className="topBar">
         <div>
-          <p className="eyebrow">IT Help Desk</p>
+          <p className="eyebrow">{session.role} workspace</p>
           <h1>Ticket Management</h1>
         </div>
         <div className="metrics">
           <span>{metrics.total} total</span>
           <span>{metrics.open} open</span>
+          <span>{metrics.assigned} assigned</span>
           <span>{metrics.urgent} urgent</span>
+          <button className="ghostButton" onClick={handleLogout} type="button">Sign Out</button>
         </div>
       </header>
 
-      {(message || error) && (
-        <div className={error ? 'alert error' : 'alert success'}>
-          {error || message}
-        </div>
-      )}
+      {(message || error) && <div className={error ? 'alert error' : 'alert success'}>{error || message}</div>}
 
       <section className="workspace">
         <TicketForm
@@ -363,6 +550,7 @@ export default function App() {
           onCancel={() => setEditingTicket(null)}
           onSubmit={handleSubmit}
           saving={saving}
+          userRole={session.role}
         />
 
         <section className="panel listPanel">
@@ -373,11 +561,7 @@ export default function App() {
             </div>
           </div>
 
-          <CategoryFilter
-            activeCategory={activeCategory}
-            categories={categories}
-            onChange={setActiveCategory}
-          />
+          <TicketFilters categories={categories} filters={filters} onChange={setFilters} statuses={statuses} />
 
           {loading ? (
             <div className="emptyState">Loading tickets...</div>
@@ -386,13 +570,28 @@ export default function App() {
               tickets={tickets}
               selectedTicket={selectedTicket}
               onDelete={handleDelete}
-              onEdit={handleEdit}
+              onEdit={(ticket) => {
+                setEditingTicket(ticket);
+                setSelectedTicket(ticket);
+              }}
               onSelect={setSelectedTicket}
+              userRole={session.role}
             />
           )}
         </section>
 
-        <TicketDetail ticket={selectedTicket} />
+        <TicketDetail
+          agents={agents}
+          onAssign={async (ticketId, agentId) => refreshAfterChange(await assignTicket(ticketId, agentId), 'Ticket assigned successfully.')}
+          onComment={async (ticketId, comment) => {
+            await addTicketComment(ticketId, comment);
+            return refreshAfterChange(await getTicket(ticketId), 'Comment added successfully.');
+          }}
+          onStatusChange={async (ticketId, status) => refreshAfterChange(await updateTicketStatus(ticketId, status), 'Status updated successfully.')}
+          statuses={statuses}
+          ticket={selectedTicket}
+          userRole={session.role}
+        />
       </section>
     </main>
   );

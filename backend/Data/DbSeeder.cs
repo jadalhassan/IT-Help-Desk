@@ -1,4 +1,5 @@
 using HelpDesk.Api.Models;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace HelpDesk.Api.Data;
@@ -9,7 +10,7 @@ public static class DbSeeder
 
     public static async Task SeedAsync(AppDbContext db)
     {
-        await EnsureTicketTableAsync(db);
+        await EnsureSchemaAsync(db);
 
         if (await db.Users.AnyAsync())
         {
@@ -48,7 +49,7 @@ public static class DbSeeder
         await SeedTicketsAsync(db);
     }
 
-    private static async Task EnsureTicketTableAsync(AppDbContext db)
+    private static async Task EnsureSchemaAsync(AppDbContext db)
     {
         if (db.Database.IsSqlite())
         {
@@ -61,14 +62,105 @@ public static class DbSeeder
                     "Priority" TEXT NOT NULL,
                     "Status" TEXT NOT NULL,
                     "CreatedAtUtc" TEXT NOT NULL,
-                    "UpdatedAtUtc" TEXT NOT NULL
+                    "UpdatedAtUtc" TEXT NOT NULL,
+                    "CreatorUserId" INTEGER NOT NULL DEFAULT 0,
+                    "AssignedAgentId" INTEGER NULL
+                );
+                """);
+
+            await AddColumnIfMissingAsync(db, "Tickets", "CreatorUserId", """INTEGER NOT NULL DEFAULT 0""");
+            await AddColumnIfMissingAsync(db, "Tickets", "AssignedAgentId", "INTEGER NULL");
+
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "TicketComments" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_TicketComments" PRIMARY KEY AUTOINCREMENT,
+                    "TicketId" INTEGER NOT NULL,
+                    "AuthorUserId" INTEGER NOT NULL,
+                    "ParentCommentId" INTEGER NULL,
+                    "Content" TEXT NOT NULL,
+                    "Visibility" TEXT NOT NULL,
+                    "CreatedAtUtc" TEXT NOT NULL
+                );
+                """);
+
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "ActivityLogs" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_ActivityLogs" PRIMARY KEY AUTOINCREMENT,
+                    "TicketId" INTEGER NOT NULL,
+                    "ActorUserId" INTEGER NOT NULL,
+                    "ActionType" TEXT NOT NULL,
+                    "OldValue" TEXT NULL,
+                    "NewValue" TEXT NULL,
+                    "Description" TEXT NOT NULL,
+                    "CreatedAtUtc" TEXT NOT NULL
+                );
+                """);
+
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TABLE IF NOT EXISTS "TicketStatusHistories" (
+                    "Id" INTEGER NOT NULL CONSTRAINT "PK_TicketStatusHistories" PRIMARY KEY AUTOINCREMENT,
+                    "TicketId" INTEGER NOT NULL,
+                    "ChangedByUserId" INTEGER NOT NULL,
+                    "OldStatus" TEXT NOT NULL,
+                    "NewStatus" TEXT NOT NULL,
+                    "ChangedAtUtc" TEXT NOT NULL
                 );
                 """);
         }
     }
 
+    private static async Task AddColumnIfMissingAsync(AppDbContext db, string table, string column, string definition)
+    {
+        var connection = (SqliteConnection)db.Database.GetDbConnection();
+        var shouldClose = connection.State == System.Data.ConnectionState.Closed;
+        if (shouldClose)
+        {
+            await connection.OpenAsync();
+        }
+
+        var columnExists = false;
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = $"PRAGMA table_info(\"{table}\");";
+            await using var reader = await command.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                columnExists = string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase);
+                if (columnExists)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (columnExists)
+        {
+            if (shouldClose)
+            {
+                await connection.CloseAsync();
+            }
+
+            return;
+        }
+
+        await using var alterCommand = connection.CreateCommand();
+        alterCommand.CommandText = $"""ALTER TABLE "{table}" ADD COLUMN "{column}" {definition};""";
+        await alterCommand.ExecuteNonQueryAsync();
+
+        if (shouldClose)
+        {
+            await connection.CloseAsync();
+        }
+    }
+
     private static async Task SeedTicketsAsync(AppDbContext db)
     {
+        var requester = await db.Users.FirstAsync(user => user.Role == "User");
+        var agent = await db.Users.FirstOrDefaultAsync(user => user.Role == "Agent");
+        await db.Database.ExecuteSqlRawAsync(
+            """UPDATE "Tickets" SET "CreatorUserId" = {0} WHERE "CreatorUserId" = 0""",
+            requester.Id);
+
         if (await db.Tickets.AnyAsync())
         {
             return;
@@ -84,6 +176,7 @@ public static class DbSeeder
                 Category = Categories[2],
                 Priority = "High",
                 Status = "Open",
+                CreatorUserId = requester.Id,
                 CreatedAtUtc = now.AddHours(-7),
                 UpdatedAtUtc = now.AddHours(-7)
             },
@@ -94,6 +187,8 @@ public static class DbSeeder
                 Category = Categories[3],
                 Priority = "Medium",
                 Status = "In Progress",
+                CreatorUserId = requester.Id,
+                AssignedAgentId = agent?.Id,
                 CreatedAtUtc = now.AddDays(-1),
                 UpdatedAtUtc = now.AddHours(-3)
             },
@@ -104,6 +199,8 @@ public static class DbSeeder
                 Category = Categories[1],
                 Priority = "Low",
                 Status = "Resolved",
+                CreatorUserId = requester.Id,
+                AssignedAgentId = agent?.Id,
                 CreatedAtUtc = now.AddDays(-3),
                 UpdatedAtUtc = now.AddDays(-1)
             }
