@@ -1,95 +1,160 @@
-# IDS Starter (React + ASP.NET Core + SQLite/PostgreSQL)
+# IT Help Desk Ticket Management System
 
-This repo now includes:
-- `frontend` (React + Vite)
-- `backend` (ASP.NET Core Web API with JWT auth + role-based authorization)
+Full-stack ticket management system built with React, Vite, ASP.NET Core Web API, and SQLite by default.
 
-## Architecture
-- Frontend: login page + index page to test public/user/agent/admin endpoints.
-- Backend: JWT authentication, role policies (`AdminOnly`, `AgentOrAdmin`), seeded users.
-- DB: SQLite by default (fast local bootstrap), PostgreSQL optional via config.
+## Features
 
-## 1) Prerequisites
-Install these first:
-1. .NET SDK 9
-2. (Optional) PostgreSQL 16+
-3. Node.js 20+
+- Create, view, edit, update, and delete help desk tickets.
+- Assign tickets to categories: Bug, Feature Request, Support, Billing, and General.
+- Track priority, status, created date, and updated date.
+- Filter tickets by category.
+- Validate required fields before saving.
+- Connect the React frontend directly to backend REST APIs.
+- Seed sample users and starter ticket data for local testing.
 
-## 2) Database setup
-Default (already working): SQLite
-- `backend/appsettings.json`
-- `DatabaseProvider: Sqlite`
-- `ConnectionStrings:DefaultConnection = Data Source=helpdesk.db`
+## Tech Stack
 
-Optional PostgreSQL:
-1. Install PostgreSQL and create `helpdesk_db`.
-2. Set in `backend/appsettings.json`:
-   - `DatabaseProvider: PostgreSQL`
-   - `ConnectionStrings:DefaultConnection = Host=localhost;Port=5432;Database=helpdesk_db;Username=postgres;Password=postgres`
+- Frontend: React + Vite
+- Backend: ASP.NET Core Web API
+- Database: SQLite by default, PostgreSQL optional
+- Auth foundation: JWT authentication and seeded roles remain available
 
-## 3) Backend setup
-1. Open terminal in `backend`
-2. Restore and run:
+## Project Structure
+
+```text
+IDS/
+  backend/
+    Controllers/
+    Data/
+    Dtos/
+    Models/
+    Services/
+  frontend/
+    src/
+      App.jsx
+      api.js
+      index.css
+```
+
+## Prerequisites
+
+- .NET SDK 9
+- Node.js 20+
+- Optional: PostgreSQL 16+
+
+## Backend Setup
+
+From the `backend` folder:
+
 ```powershell
 dotnet restore
 dotnet run
 ```
-3. API base URL should be shown (example: `https://localhost:7243`)
 
-Notes:
-- JWT config is in `backend/appsettings.json` under `Jwt`.
-- Replace `Jwt:Secret` with a long random value before production.
+The API runs on the URL shown in the terminal. For a predictable local URL, run:
 
-## 4) Frontend setup
-1. Open terminal in project root or `frontend`
-2. Install + run:
 ```powershell
-npm install
-npm run dev
+dotnet run --urls http://localhost:5000
 ```
-3. Open `http://localhost:5173`
 
-Notes:
-- From project root, `npm run dev` proxies to `frontend` automatically.
-- If you run commands inside `frontend`, use `npm install` once there too.
+SQLite is configured in `backend/appsettings.json`:
 
-If backend URL differs from `https://localhost:7243`, edit:
-- `frontend/src/api.js` (`API_BASE`)
+```json
+"DatabaseProvider": "Sqlite",
+"ConnectionStrings": {
+  "DefaultConnection": "Data Source=helpdesk.db"
+}
+```
 
-## 7) Deploy frontend to GitHub Pages
-This repo is configured to deploy `frontend` automatically using GitHub Actions:
-- Workflow file: `.github/workflows/deploy-frontend-pages.yml`
-- Trigger: push to `main`
+## Frontend Setup
 
-Setup required once in GitHub:
-1. Go to `Settings > Pages` and set `Source` to `GitHub Actions`.
-2. (Optional but recommended) add repository variable `VITE_API_BASE` under `Settings > Secrets and variables > Actions > Variables` with your deployed backend URL (example: `https://api.example.com/api`).
+From the project root:
 
-After you push to `main`, the site will publish at:
-- `https://jadalhassan.github.io/IT-Help-Desk/`
+```powershell
+npm install --prefix frontend
+$env:VITE_API_BASE="http://localhost:5000/api"
+npm --prefix frontend run dev
+```
 
-## 5) Seed credentials
+Open:
+
+```text
+http://localhost:5173/IT-Help-Desk/
+```
+
+If your backend uses the default HTTPS URL, set `VITE_API_BASE` to that value instead, for example:
+
+```powershell
+$env:VITE_API_BASE="https://localhost:7243/api"
+```
+
+## API Endpoints
+
+- `GET /api/tickets` - list tickets
+- `GET /api/tickets?category=Bug` - list tickets by category
+- `GET /api/tickets/{id}` - get one ticket
+- `POST /api/tickets` - create ticket
+- `PUT /api/tickets/{id}` - update ticket
+- `DELETE /api/tickets/{id}` - delete ticket
+- `GET /api/categories` - list ticket categories
+- `POST /api/auth/login` - existing login endpoint
+
+## Ticket Payload
+
+```json
+{
+  "title": "Cannot access email",
+  "description": "User receives an invalid credentials message.",
+  "category": "Support",
+  "priority": "High",
+  "status": "Open"
+}
+```
+
+Valid priorities:
+
+```text
+Low, Medium, High, Urgent
+```
+
+Valid statuses:
+
+```text
+Open, In Progress, Resolved, Closed
+```
+
+## Seed Data
+
+The backend creates the SQLite database automatically and seeds starter tickets.
+
+Seed users:
+
 - Admin: `admin@helpdesk.local` / `Admin@123`
 - Agent: `agent@helpdesk.local` / `Agent@123`
 - User: `user@helpdesk.local` / `User@123`
 
-## 6) Endpoints
-- `POST /api/auth/login`
-- `GET /api/tickets/public` (anonymous)
-- `GET /api/tickets/user` (authenticated)
-- `GET /api/tickets/agent` (Agent or Admin)
-- `GET /api/tickets/admin` (Admin only)
+## Build
 
-## Learning resources
-- React + ASP.NET Core JWT Authentication (official guidance):
-  - https://learn.microsoft.com/en-us/aspnet/core/security/authentication/configure-jwt-bearer-authentication?view=aspnetcore-9.0
-- ASP.NET Core Authentication Tutorial:
-  - https://learn.microsoft.com/en-us/aspnet/core/security/authentication/?view=aspnetcore-9.0
-- JWT authentication server tutorial (official patterns):
-  - https://learn.microsoft.com/en-us/aspnet/core/security/authentication/configure-jwt-bearer-authentication?view=aspnetcore-9.0
+Backend:
 
-## Suggested GitHub repos
-- RBAC React + ASP.NET Core Example (search):
-  - https://github.com/search?q=react+asp.net+core+jwt+rbac&type=repositories
-- ASP.NET Core Developer Roadmap:
-  - https://github.com/saifaustcse/aspdotnet-developer-roadmap
+```powershell
+dotnet build backend
+```
+
+Frontend:
+
+```powershell
+npm --prefix frontend run build
+```
+
+## Deployment
+
+The frontend is configured for GitHub Pages with base path `/IT-Help-Desk/`.
+
+Workflow:
+
+```text
+.github/workflows/deploy-frontend-pages.yml
+```
+
+Set a repository variable named `VITE_API_BASE` in GitHub Actions if the deployed frontend should connect to a hosted backend.

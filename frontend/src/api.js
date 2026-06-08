@@ -1,27 +1,56 @@
 const API_BASE = import.meta.env.VITE_API_BASE || 'https://localhost:7243/api';
 
-export async function login(email, password) {
-  const response = await fetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+async function request(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
   });
 
-  if (!response.ok) {
-    throw new Error('Invalid email or password');
+  if (response.status === 204) {
+    return null;
   }
 
-  return response.json();
-}
-
-export async function callEndpoint(path, token) {
-  const headers = token ? { Authorization: `Bearer ${token}` } : {};
-  const response = await fetch(`${API_BASE}${path}`, { headers });
-  const data = await response.json();
+  const data = await response.json().catch(() => null);
 
   if (!response.ok) {
     throw new Error(data?.message ?? `${response.status} ${response.statusText}`);
   }
 
   return data;
+}
+
+export function getTickets(category = 'All') {
+  const query = category && category !== 'All' ? `?category=${encodeURIComponent(category)}` : '';
+  return request(`/tickets${query}`);
+}
+
+export function getTicket(id) {
+  return request(`/tickets/${id}`);
+}
+
+export function createTicket(ticket) {
+  return request('/tickets', {
+    method: 'POST',
+    body: JSON.stringify(ticket),
+  });
+}
+
+export function updateTicket(id, ticket) {
+  return request(`/tickets/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(ticket),
+  });
+}
+
+export function deleteTicket(id) {
+  return request(`/tickets/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export function getCategories() {
+  return request('/categories');
 }
