@@ -10,6 +10,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TicketComment> TicketComments => Set<TicketComment>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
     public DbSet<TicketStatusHistory> TicketStatusHistories => Set<TicketStatusHistory>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +84,64 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<TicketStatusHistory>()
             .Property(x => x.NewStatus)
             .HasMaxLength(32);
+
+        modelBuilder.Entity<Notification>()
+            .Property(x => x.Title)
+            .HasMaxLength(160);
+
+        modelBuilder.Entity<Notification>()
+            .Property(x => x.Message)
+            .HasMaxLength(1000);
+
+        modelBuilder.Entity<Notification>()
+            .Property(x => x.Type)
+            .HasMaxLength(32);
+
+        modelBuilder.Entity<Notification>()
+            .HasOne(x => x.User)
+            .WithMany()
+            .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Notification>()
+            .HasIndex(x => new { x.UserId, x.IsRead });
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.OriginalFileName)
+            .HasMaxLength(255);
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.StoredFileName)
+            .HasMaxLength(255);
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.ContentType)
+            .HasMaxLength(128);
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.StoragePath)
+            .HasMaxLength(512);
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.RelatedEntityType)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.RelatedEntityId)
+            .HasMaxLength(64);
+
+        modelBuilder.Entity<Attachment>()
+            .Property(x => x.Description)
+            .HasMaxLength(500);
+
+        modelBuilder.Entity<Attachment>()
+            .HasOne(x => x.UploadedByUser)
+            .WithMany()
+            .HasForeignKey(x => x.UploadedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Attachment>()
+            .HasIndex(x => new { x.RelatedEntityType, x.RelatedEntityId });
 
         base.OnModelCreating(modelBuilder);
     }

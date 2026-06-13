@@ -3,6 +3,7 @@ using System.Security.Claims;
 using HelpDesk.Api.Data;
 using HelpDesk.Api.Dtos;
 using HelpDesk.Api.Models;
+using HelpDesk.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,7 @@ namespace HelpDesk.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class TicketsController(AppDbContext db) : ControllerBase
+public class TicketsController(AppDbContext db, INotificationService notificationService) : ControllerBase
 {
     private static readonly string[] Categories = ["Bug", "Feature Request", "Support", "Billing", "General"];
     private static readonly string[] Priorities = ["Low", "Medium", "High", "Urgent"];
@@ -123,6 +124,22 @@ public class TicketsController(AppDbContext db) : ControllerBase
         AddActivity(ticket.Id, actorId, "TicketCreated", null, "Open", "Ticket created.", now);
         await db.SaveChangesAsync();
 
+        var admins = await db.Users.AsNoTracking()
+            .Where(user => user.Role == "Admin" && user.Id != actorId)
+            .Select(user => user.Id)
+            .ToListAsync();
+        foreach (var adminId in admins)
+        {
+            await notificationService.CreateForUserAsync(
+                adminId,
+                "New ticket created",
+                $"Ticket #{ticket.Id} was created: {ticket.Title}.",
+                "info",
+                "ticket",
+                ticket.Id.ToString(),
+                HttpContext.RequestAborted);
+        }
+
         var dto = ToDto(await LoadTicketAsync(ticket.Id), CurrentRole());
         return CreatedAtAction(nameof(GetTicket), new { id = ticket.Id }, dto);
     }
@@ -198,6 +215,15 @@ public class TicketsController(AppDbContext db) : ControllerBase
 
         await db.SaveChangesAsync();
 
+        await notificationService.CreateForUserAsync(
+            agent.Id,
+            "Ticket assigned",
+            $"Ticket #{ticket.Id} was assigned to you.",
+            "info",
+            "ticket",
+            ticket.Id.ToString(),
+            HttpContext.RequestAborted);
+
         return Ok(ToDto(await LoadTicketAsync(id), CurrentRole()));
     }
 
@@ -226,8 +252,29 @@ public class TicketsController(AppDbContext db) : ControllerBase
             return BadRequest(new { message = $"Cannot change status from {ticket.Status} to {request.Status}." });
         }
 
+        var oldStatus = ticket.Status;
         AddStatusChange(ticket, CurrentUserId(), request.Status, DateTime.UtcNow);
         await db.SaveChangesAsync();
+
+        if (oldStatus != request.Status)
+        {
+            var recipients = new[] { ticket.CreatorUserId, ticket.AssignedAgentId }
+                .Where(userId => userId.HasValue && userId.Value != CurrentUserId())
+                .Select(userId => userId!.Value)
+                .Distinct();
+
+            foreach (var userId in recipients)
+            {
+                await notificationService.CreateForUserAsync(
+                    userId,
+                    "Ticket status updated",
+                    $"Ticket #{ticket.Id} changed from {oldStatus} to {request.Status}.",
+                    request.Status is "Resolved" or "Closed" ? "success" : "info",
+                    "ticket",
+                    ticket.Id.ToString(),
+                    HttpContext.RequestAborted);
+            }
+        }
 
         return Ok(ToDto(await LoadTicketAsync(id), CurrentRole()));
     }

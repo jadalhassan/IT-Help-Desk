@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   addTicketComment,
   assignTicket,
@@ -13,6 +14,10 @@ import {
   updateTicket,
   updateTicketStatus,
 } from './api';
+import { AttachmentList } from './features/attachments/components/AttachmentList';
+import { DashboardPage } from './features/dashboard/pages/DashboardPage';
+import { NotificationBell } from './features/notifications/components/NotificationBell';
+import { useSignalRNotifications } from './features/notifications/hooks/useSignalRNotifications';
 import './index.css';
 
 const emptyTicket = {
@@ -364,6 +369,8 @@ function TicketDetail({ agents, onAssign, onComment, onStatusChange, statuses, t
         </>
       )} />
 
+      <AttachmentList relatedEntityId={ticket.id} relatedEntityType="ticket" userRole={userRole} />
+
       <HistorySection title="Status Timeline" items={ticket.statusHistory} empty="No status changes yet." render={(item) => (
         <>
           <strong>{item.oldStatus} to {item.newStatus}</strong>
@@ -400,10 +407,12 @@ function HistorySection({ empty, items, render, title }) {
 }
 
 export default function App() {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState(() => {
     const stored = localStorage.getItem('helpdesk_user');
     return stored ? JSON.parse(stored) : null;
   });
+  const [activeView, setActiveView] = useState('tickets');
   const [tickets, setTickets] = useState([]);
   const [categories, setCategories] = useState([]);
   const [statuses, setStatuses] = useState([]);
@@ -415,6 +424,7 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  useSignalRNotifications(Boolean(session));
 
   const metrics = useMemo(() => ({
     total: tickets.length,
@@ -474,6 +484,9 @@ export default function App() {
 
   const refreshAfterChange = async (updatedTicket, successMessage) => {
     setMessage(successMessage);
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCount'] });
     await loadTickets();
     setSelectedTicket(updatedTicket);
   };
@@ -507,6 +520,7 @@ export default function App() {
       setMessage('Ticket deleted successfully.');
       setSelectedTicket(null);
       setEditingTicket(null);
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       await loadTickets();
     } catch (deleteError) {
       setError(deleteError.message);
@@ -516,9 +530,11 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('helpdesk_token');
     localStorage.removeItem('helpdesk_user');
+    queryClient.clear();
     setSession(null);
     setTickets([]);
     setSelectedTicket(null);
+    setActiveView('tickets');
   };
 
   if (!session) {
@@ -537,62 +553,76 @@ export default function App() {
           <span>{metrics.open} open</span>
           <span>{metrics.assigned} assigned</span>
           <span>{metrics.urgent} urgent</span>
+          <NotificationBell />
           <button className="ghostButton" onClick={handleLogout} type="button">Sign Out</button>
         </div>
       </header>
 
       {(message || error) && <div className={error ? 'alert error' : 'alert success'}>{error || message}</div>}
 
-      <section className="workspace">
-        <TicketForm
-          categories={categories}
-          editingTicket={editingTicket}
-          onCancel={() => setEditingTicket(null)}
-          onSubmit={handleSubmit}
-          saving={saving}
-          userRole={session.role}
-        />
+      <nav className="viewTabs" aria-label="Workspace views">
+        <button className={activeView === 'tickets' ? 'active' : ''} onClick={() => setActiveView('tickets')} type="button">
+          Tickets
+        </button>
+        <button className={activeView === 'dashboard' ? 'active' : ''} onClick={() => setActiveView('dashboard')} type="button">
+          Dashboard
+        </button>
+      </nav>
 
-        <section className="panel listPanel">
-          <div className="panelHeader">
-            <div>
-              <p className="eyebrow">Queue</p>
-              <h2>Tickets</h2>
+      {activeView === 'dashboard' ? (
+        <DashboardPage />
+      ) : (
+        <section className="workspace">
+          <TicketForm
+            categories={categories}
+            editingTicket={editingTicket}
+            onCancel={() => setEditingTicket(null)}
+            onSubmit={handleSubmit}
+            saving={saving}
+            userRole={session.role}
+          />
+
+          <section className="panel listPanel">
+            <div className="panelHeader">
+              <div>
+                <p className="eyebrow">Queue</p>
+                <h2>Tickets</h2>
+              </div>
             </div>
-          </div>
 
-          <TicketFilters categories={categories} filters={filters} onChange={setFilters} statuses={statuses} />
+            <TicketFilters categories={categories} filters={filters} onChange={setFilters} statuses={statuses} />
 
-          {loading ? (
-            <div className="emptyState">Loading tickets...</div>
-          ) : (
-            <TicketList
-              tickets={tickets}
-              selectedTicket={selectedTicket}
-              onDelete={handleDelete}
-              onEdit={(ticket) => {
-                setEditingTicket(ticket);
-                setSelectedTicket(ticket);
-              }}
-              onSelect={setSelectedTicket}
-              userRole={session.role}
-            />
-          )}
+            {loading ? (
+              <div className="emptyState">Loading tickets...</div>
+            ) : (
+              <TicketList
+                tickets={tickets}
+                selectedTicket={selectedTicket}
+                onDelete={handleDelete}
+                onEdit={(ticket) => {
+                  setEditingTicket(ticket);
+                  setSelectedTicket(ticket);
+                }}
+                onSelect={setSelectedTicket}
+                userRole={session.role}
+              />
+            )}
+          </section>
+
+          <TicketDetail
+            agents={agents}
+            onAssign={async (ticketId, agentId) => refreshAfterChange(await assignTicket(ticketId, agentId), 'Ticket assigned successfully.')}
+            onComment={async (ticketId, comment) => {
+              await addTicketComment(ticketId, comment);
+              return refreshAfterChange(await getTicket(ticketId), 'Comment added successfully.');
+            }}
+            onStatusChange={async (ticketId, status) => refreshAfterChange(await updateTicketStatus(ticketId, status), 'Status updated successfully.')}
+            statuses={statuses}
+            ticket={selectedTicket}
+            userRole={session.role}
+          />
         </section>
-
-        <TicketDetail
-          agents={agents}
-          onAssign={async (ticketId, agentId) => refreshAfterChange(await assignTicket(ticketId, agentId), 'Ticket assigned successfully.')}
-          onComment={async (ticketId, comment) => {
-            await addTicketComment(ticketId, comment);
-            return refreshAfterChange(await getTicket(ticketId), 'Comment added successfully.');
-          }}
-          onStatusChange={async (ticketId, status) => refreshAfterChange(await updateTicketStatus(ticketId, status), 'Status updated successfully.')}
-          statuses={statuses}
-          ticket={selectedTicket}
-          userRole={session.role}
-        />
-      </section>
+      )}
     </main>
   );
 }

@@ -1,10 +1,12 @@
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5088/api';
+export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:5088/api';
+export const API_ROOT = API_BASE.replace(/\/api\/?$/, '');
 
 async function request(path, options = {}) {
   const token = localStorage.getItem('helpdesk_token');
+  const isFormData = options.body instanceof FormData;
   const response = await fetch(`${API_BASE}${path}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
@@ -97,4 +99,90 @@ export function getStatuses() {
 
 export function getAgents() {
   return request('/users/agents');
+}
+
+export function getDashboardStats() {
+  return request('/dashboard/stats');
+}
+
+export function getTasksByStatus() {
+  return request('/dashboard/charts/tasks-by-status');
+}
+
+export function getActivityTrends() {
+  return request('/dashboard/charts/activity-trends');
+}
+
+export function getRecentActivity() {
+  return request('/dashboard/recent-activity');
+}
+
+export function getNotifications() {
+  return request('/notifications');
+}
+
+export function getUnreadNotificationCount() {
+  return request('/notifications/unread-count');
+}
+
+export function markNotificationRead(id) {
+  return request(`/notifications/${id}/read`, {
+    method: 'PATCH',
+  });
+}
+
+export function markAllNotificationsRead() {
+  return request('/notifications/read-all', {
+    method: 'PATCH',
+  });
+}
+
+export function getAttachments(relatedEntityType, relatedEntityId) {
+  const params = new URLSearchParams({ relatedEntityType, relatedEntityId: String(relatedEntityId) });
+  return request(`/attachments?${params}`);
+}
+
+export function uploadAttachment({ file, relatedEntityType, relatedEntityId, description }) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('relatedEntityType', relatedEntityType);
+  formData.append('relatedEntityId', String(relatedEntityId));
+  if (description) {
+    formData.append('description', description);
+  }
+
+  return request('/attachments/upload', {
+    method: 'POST',
+    body: formData,
+  });
+}
+
+export function deleteAttachment(id) {
+  return request(`/attachments/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function downloadAttachment(attachment) {
+  const token = localStorage.getItem('helpdesk_token');
+  const response = await fetch(`${API_BASE}/attachments/${attachment.id}/download`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? 'Download failed.');
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = attachment.originalFileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
