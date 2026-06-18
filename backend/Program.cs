@@ -26,6 +26,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IReportExportService, ReportExportService>();
+builder.Services.AddHttpClient<IAiService, AiService>();
 builder.Services.AddSignalR();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");

@@ -8,6 +8,8 @@ Full-stack ticket management system built with React, Vite, ASP.NET Core Web API
 - Assign tickets to categories: Bug, Feature Request, Support, Billing, and General.
 - Track priority, status, created date, and updated date.
 - Filter tickets by category.
+- View a reports workspace with ticket KPIs, breakdown charts, filterable tables, and PDF/Excel exports.
+- Use AI assistance for ticket categorization, priority recommendations, summaries, troubleshooting suggestions, and ticket-aware chat.
 - Validate required fields before saving.
 - Connect the React frontend directly to backend REST APIs.
 - Seed sample users and starter ticket data for local testing.
@@ -98,6 +100,53 @@ $env:VITE_API_BASE="https://localhost:7243/api"
 - `DELETE /api/tickets/{id}` - delete ticket
 - `GET /api/categories` - list ticket categories
 - `POST /api/auth/login` - existing login endpoint
+- `GET /api/reports/tickets` - filterable ticket report data
+- `GET /api/reports/tickets/export/pdf` - export the filtered ticket report as PDF
+- `GET /api/reports/tickets/export/excel` - export the filtered ticket report as Excel `.xlsx`
+- `GET /api/reports/filters` - report filter options scoped to the current user
+- `GET /api/ai/status` - configured AI provider status
+- `POST /api/ai/tickets/{id}/categorize` - suggest a ticket category
+- `POST /api/ai/tickets/{id}/recommend-priority` - recommend ticket priority
+- `POST /api/ai/tickets/{id}/summarize` - summarize ticket details and comments
+- `POST /api/ai/tickets/{id}/troubleshooting` - suggest troubleshooting steps
+- `POST /api/ai/chat` - ticket-aware AI assistant chat
+
+Report endpoints follow the same visibility rules as tickets: admins can report across all tickets, agents see assigned tickets, and users see their own tickets.
+
+## AI Configuration
+
+AI features use backend environment variables only. No API keys are exposed to the frontend.
+
+OpenAI:
+
+```powershell
+$env:AI_PROVIDER="openai"
+$env:OPENAI_API_KEY="..."
+$env:OPENAI_MODEL="gpt-4.1-mini"
+dotnet run --project backend
+```
+
+Azure OpenAI:
+
+```powershell
+$env:AI_PROVIDER="azure"
+$env:AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
+$env:AZURE_OPENAI_API_KEY="..."
+$env:AZURE_OPENAI_DEPLOYMENT="your-deployment"
+$env:AZURE_OPENAI_API_VERSION="2024-10-21"
+dotnet run --project backend
+```
+
+Ollama:
+
+```powershell
+$env:AI_PROVIDER="ollama"
+$env:OLLAMA_BASE_URL="http://localhost:11434"
+$env:OLLAMA_MODEL="llama3.1"
+dotnet run --project backend
+```
+
+If the provider is not configured, the AI panel remains visible but requests return a clear configuration error.
 
 ## Ticket Payload
 

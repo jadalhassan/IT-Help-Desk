@@ -461,6 +461,135 @@ textarea:focus {
   min-width: 0;
 }
 
+.compactChart {
+  height: 240px;
+}
+
+.reportFilters {
+  display: grid;
+  gap: 10px;
+}
+
+.reportFilterGrid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.reportTablePanel {
+  overflow: hidden;
+}
+
+.reportTableWrap {
+  overflow: auto;
+}
+
+.reportTable {
+  border-collapse: collapse;
+  min-width: 980px;
+  width: 100%;
+}
+
+.reportTable th,
+.reportTable td {
+  border-bottom: 1px solid #e0e8ed;
+  color: #344756;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.reportTable th {
+  background: #f7fafb;
+  color: #17202a;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.aiPanel {
+  border-top: 1px solid #e0e8ed;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.aiPanel h3 {
+  font-size: 1rem;
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.aiStatus {
+  background: #fff6d7;
+  border-radius: 999px;
+  color: #7a4f00;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 7px 10px;
+  text-transform: uppercase;
+}
+
+.aiStatus.ready {
+  background: #e4f8ec;
+  color: #17613a;
+}
+
+.aiActionGrid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.aiResult,
+.chatBubble {
+  background: #f7fafb;
+  border: 1px solid #e0e8ed;
+  border-radius: 7px;
+  color: #344756;
+  display: grid;
+  gap: 6px;
+  line-height: 1.45;
+  padding: 10px;
+}
+
+.aiResult p,
+.chatBubble {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.aiResult span {
+  color: #61717d;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.aiResult ol {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.aiChatForm {
+  display: grid;
+  gap: 10px;
+}
+
+.aiChatHistory {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.chatBubble.user {
+  background: #e9f5ff;
+  border-color: #c8e5fa;
+}
+
 .activityList,
 .notificationList,
 .attachmentList {
@@ -742,6 +871,7 @@ textarea:focus {
   }
 
   .filterGrid,
+  .reportFilterGrid,
   .actionPanel {
     grid-template-columns: 1fr;
   }

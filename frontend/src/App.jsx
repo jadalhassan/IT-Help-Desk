@@ -15,8 +15,10 @@ import {
   updateTicketStatus,
 } from './api';
 import { AttachmentList } from './features/attachments/components/AttachmentList';
+import { AiAssistantPanel } from './features/ai/components/AiAssistantPanel';
 import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { NotificationBell } from './features/notifications/components/NotificationBell';
+import { ReportsPage } from './features/reports/pages/ReportsPage';
 import { useSignalRNotifications } from './features/notifications/hooks/useSignalRNotifications';
 import './index.css';
 
@@ -371,6 +373,8 @@ function TicketDetail({ agents, onAssign, onComment, onStatusChange, statuses, t
 
       <AttachmentList relatedEntityId={ticket.id} relatedEntityType="ticket" userRole={userRole} />
 
+      <AiAssistantPanel ticket={ticket} />
+
       <HistorySection title="Status Timeline" items={ticket.statusHistory} empty="No status changes yet." render={(item) => (
         <>
           <strong>{item.oldStatus} to {item.newStatus}</strong>
@@ -567,10 +571,15 @@ export default function App() {
         <button className={activeView === 'dashboard' ? 'active' : ''} onClick={() => setActiveView('dashboard')} type="button">
           Dashboard
         </button>
+        <button className={activeView === 'reports' ? 'active' : ''} onClick={() => setActiveView('reports')} type="button">
+          Reports
+        </button>
       </nav>
 
       {activeView === 'dashboard' ? (
         <DashboardPage />
+      ) : activeView === 'reports' ? (
+        <ReportsPage />
       ) : (
         <section className="workspace">
           <TicketForm

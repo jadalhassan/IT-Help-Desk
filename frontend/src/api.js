@@ -26,6 +26,30 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function download(path, fileName) {
+  const token = localStorage.getItem('helpdesk_token');
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new Error(data?.message ?? 'Download failed.');
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function login(credentials) {
   return request('/auth/login', {
     method: 'POST',
@@ -115,6 +139,62 @@ export function getActivityTrends() {
 
 export function getRecentActivity() {
   return request('/dashboard/recent-activity');
+}
+
+function buildQuery(filters = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value && value !== 'All') {
+      params.set(key, value);
+    }
+  });
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
+export function getTicketReport(filters = {}) {
+  return request(`/reports/tickets${buildQuery(filters)}`);
+}
+
+export function getReportFilters() {
+  return request('/reports/filters');
+}
+
+export function downloadTicketReportPdf(filters = {}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return download(`/reports/tickets/export/pdf${buildQuery(filters)}`, `tickets-report-${today}.pdf`);
+}
+
+export function downloadTicketReportExcel(filters = {}) {
+  const today = new Date().toISOString().slice(0, 10);
+  return download(`/reports/tickets/export/excel${buildQuery(filters)}`, `tickets-report-${today}.xlsx`);
+}
+
+export function getAiStatus() {
+  return request('/ai/status');
+}
+
+export function categorizeTicket(ticketId) {
+  return request(`/ai/tickets/${ticketId}/categorize`, { method: 'POST' });
+}
+
+export function recommendTicketPriority(ticketId) {
+  return request(`/ai/tickets/${ticketId}/recommend-priority`, { method: 'POST' });
+}
+
+export function summarizeTicket(ticketId) {
+  return request(`/ai/tickets/${ticketId}/summarize`, { method: 'POST' });
+}
+
+export function getTroubleshootingSuggestions(ticketId) {
+  return request(`/ai/tickets/${ticketId}/troubleshooting`, { method: 'POST' });
+}
+
+export function sendAiChat(message, ticketId) {
+  return request('/ai/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, ticketId }),
+  });
 }
 
 export function getNotifications() {
