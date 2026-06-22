@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: helpdesk-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: DatabaseProvider
+        value: Sqlite
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=/var/data/helpdesk.db
+      - key: Jwt__Issuer
+        value: HelpDesk.Api
+      - key: Jwt__Audience
+        value: HelpDesk.Frontend
+      - key: Jwt__Secret
+        sync: false
+      - key: Cors__AllowedOrigins
+        sync: false
+    disk:
+      name: helpdesk-data
+      mountPath: /var/data
+      sizeGB: 1

@@ -198,12 +198,33 @@ npm --prefix frontend run build
 
 ## Deployment
 
-The frontend is configured for GitHub Pages with base path `/IT-Help-Desk/`.
+The frontend is configured for GitHub Pages with base path `/IT-Help-Desk/`. The backend is container-ready with `backend/Dockerfile`, and `render.yaml` provides a ready starting point for a Docker web service.
 
-Workflow:
+Frontend workflow:
 
 ```text
 .github/workflows/deploy-frontend-pages.yml
 ```
 
-Set a repository variable named `VITE_API_BASE` in GitHub Actions if the deployed frontend should connect to a hosted backend.
+Deployment files:
+
+```text
+DEPLOYMENT.md
+DEMO.md
+backend/Dockerfile
+render.yaml
+```
+
+Set a repository variable named `VITE_API_BASE` in GitHub Actions so the deployed frontend connects to the hosted backend, for example:
+
+```text
+https://helpdesk-api.onrender.com/api
+```
+
+Set backend environment variable `Cors__AllowedOrigins` to the deployed frontend origin, for example:
+
+```text
+https://jadalhassan.github.io
+```
+
+See `DEPLOYMENT.md` for the full hosting checklist and `DEMO.md` for the final presentation/demo script.
