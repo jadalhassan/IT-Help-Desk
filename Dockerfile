@@ -10,6 +10,7 @@ RUN dotnet publish HelpDesk.Api.csproj -c Release -o /app/publish /p:UseAppHost=
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
+RUN mkdir -p /data
 EXPOSE 8080
 
 COPY --from=build /app/publish ./
