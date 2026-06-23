@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using HelpDesk.Api.Data;
 using HelpDesk.Api.Hubs;
@@ -32,7 +33,7 @@ builder.Services.AddSignalR();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var secret = jwtSection["Secret"] ?? throw new InvalidOperationException("JWT secret not configured.");
-var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+var key = new SymmetricSecurityKey(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
 
 builder.Services.AddAuthentication(options =>
 {
