@@ -1,9 +1,16 @@
 :root {
-  color: #17202a;
-  background: #f4f7f9;
+  color: #111827;
+  background: #eef2f7;
   font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  --nav: #123c7c;
+  --nav-active: #0f5fd7;
+  --blue: #145fd7;
+  --line: #d9e2ef;
+  --muted: #64748b;
+  --panel: #ffffff;
+  --workspace: #f3f6fb;
 }
 
 * {
@@ -15,22 +22,62 @@ body {
 }
 
 .loginShell {
+  display: grid;
+  grid-template-columns: minmax(260px, 42vw) minmax(360px, 1fr);
+  min-height: 100vh;
+}
+
+.loginBrand {
+  align-content: center;
+  background: var(--nav);
+  color: #ffffff;
+  display: grid;
+  gap: 14px;
+  padding: 56px;
+}
+
+.brandMark,
+.sideBrand {
+  font-size: 0.86rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.loginBrand h1 {
+  font-size: clamp(2rem, 3.8vw, 4rem);
+  letter-spacing: 0;
+  line-height: 1.05;
+  margin: 0;
+  max-width: 520px;
+}
+
+.loginBrand p:not(.brandMark) {
+  color: #d7e6ff;
+  line-height: 1.6;
+  margin: 0;
+  max-width: 420px;
+}
+
+.loginStage {
   align-items: center;
   display: grid;
-  min-height: 100vh;
-  padding: 24px;
+  padding: 40px;
 }
 
 .loginPanel {
+  background: var(--panel);
+  border-radius: 6px;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08);
   display: grid;
   gap: 14px;
   margin: 0 auto;
   max-width: 420px;
+  padding: 34px;
   width: 100%;
 }
 
-.loginPanel h1 {
-  font-size: 2rem;
+.loginPanel h2 {
+  font-size: 1.35rem;
   letter-spacing: 0;
   margin: 0 0 8px;
 }
@@ -53,17 +100,79 @@ button:disabled {
 }
 
 .appShell {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
   min-height: 100vh;
-  padding: 28px;
+  padding: 0;
+}
+
+.sideNav {
+  background: var(--nav);
+  color: #ffffff;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  padding: 18px 14px;
+  position: sticky;
+  top: 0;
+}
+
+.sideBrand {
+  margin-bottom: 18px;
+  padding: 4px 8px;
+}
+
+.sideNav nav {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.sideNav button {
+  background: transparent;
+  border-radius: 4px;
+  color: #dbeafe;
+  min-height: 36px;
+  padding: 9px 10px;
+  text-align: left;
+}
+
+.sideNav button.active {
+  background: var(--nav-active);
+  color: #ffffff;
+  font-weight: 850;
+}
+
+.sideUser {
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  display: grid;
+  gap: 5px;
+  padding: 14px 8px 0;
+}
+
+.sideUser span {
+  color: #bfdbfe;
+  font-size: 0.82rem;
+}
+
+.sideUser button {
+  color: #ffffff;
+  margin-top: 8px;
+  padding-left: 0;
+}
+
+.appContent {
+  background: var(--workspace);
+  min-width: 0;
+  padding: 24px;
 }
 
 .topBar {
-  align-items: end;
+  align-items: center;
   display: flex;
   gap: 20px;
   justify-content: space-between;
-  margin: 0 auto 20px;
-  max-width: 1440px;
+  margin: 0 0 18px;
 }
 
 .topBar h1,
@@ -73,12 +182,12 @@ button:disabled {
 }
 
 .topBar h1 {
-  font-size: clamp(2rem, 4vw, 3.4rem);
-  line-height: 1;
+  font-size: 1.45rem;
+  line-height: 1.15;
 }
 
 .eyebrow {
-  color: #5f6f7c;
+  color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -87,28 +196,43 @@ button:disabled {
 }
 
 .metrics {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 8px;
-  justify-content: flex-end;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 18px;
 }
 
 .metrics span {
   background: #ffffff;
-  border: 1px solid #d7e0e7;
-  border-radius: 8px;
-  color: #344756;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+  display: grid;
+  gap: 4px;
   font-weight: 700;
-  padding: 8px 12px;
+  min-height: 78px;
+  padding: 14px;
+}
+
+.metrics strong {
+  color: #0f172a;
+  font-size: 1.55rem;
+}
+
+.topTools {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.topTools input {
+  min-width: 240px;
 }
 
 .workspace {
   display: grid;
-  gap: 18px;
-  grid-template-columns: minmax(280px, 360px) minmax(420px, 1fr) minmax(280px, 380px);
-  margin: 0 auto;
-  max-width: 1440px;
+  gap: 14px;
+  grid-template-columns: minmax(300px, 400px) minmax(420px, 1fr) minmax(300px, 420px);
 }
 
 .viewTabs {
@@ -136,9 +260,9 @@ button:disabled {
 
 .panel {
   background: #ffffff;
-  border: 1px solid #d7e0e7;
-  border-radius: 8px;
-  box-shadow: 0 14px 35px rgba(27, 43, 58, 0.08);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: none;
   min-width: 0;
   padding: 18px;
 }
@@ -158,7 +282,7 @@ button:disabled {
 }
 
 label {
-  color: #344756;
+  color: #1e293b;
   display: grid;
   font-size: 0.92rem;
   font-weight: 700;
@@ -168,10 +292,10 @@ label {
 input,
 select,
 textarea {
-  background: #fbfcfd;
-  border: 1px solid #c8d4dc;
-  border-radius: 7px;
-  color: #17202a;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  color: #111827;
   padding: 10px 11px;
   width: 100%;
 }
@@ -185,7 +309,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: #2f6f9f;
-  outline: 3px solid rgba(47, 111, 159, 0.16);
+  outline: 3px solid rgba(20, 95, 215, 0.14);
 }
 
 .fieldGrid {
@@ -196,8 +320,9 @@ textarea:focus {
 .primaryButton,
 .ghostButton,
 .dangerButton,
-.filterButton {
-  border-radius: 7px;
+.filterButton,
+.linkButton {
+  border-radius: 5px;
   font-weight: 800;
   min-height: 40px;
   padding: 9px 12px;
@@ -209,18 +334,26 @@ textarea:focus {
 }
 
 .primaryButton {
-  background: #2f6f9f;
+  background: var(--blue);
   color: #ffffff;
 }
 
 .ghostButton {
-  background: #eef4f7;
-  color: #234255;
+  background: #eef4ff;
+  color: #174ea6;
 }
 
 .dangerButton {
   background: #fff1f0;
   color: #b42318;
+}
+
+.linkButton {
+  background: transparent;
+  color: var(--blue);
+  min-height: auto;
+  padding: 0;
+  text-align: center;
 }
 
 .filterBar {
@@ -254,8 +387,8 @@ textarea:focus {
 
 .ticketItem {
   align-items: center;
-  border: 1px solid #dbe4ea;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
   display: grid;
   gap: 10px;
   grid-template-columns: minmax(0, 1fr) auto auto;
@@ -263,8 +396,8 @@ textarea:focus {
 }
 
 .ticketItem.selected {
-  border-color: #2f6f9f;
-  box-shadow: inset 4px 0 0 #2f6f9f;
+  border-color: var(--blue);
+  box-shadow: inset 4px 0 0 var(--blue);
 }
 
 .ticketSummary {
@@ -293,7 +426,7 @@ textarea:focus {
 }
 
 .status {
-  border-radius: 999px;
+  border-radius: 5px;
   display: inline-flex;
   font-size: 0.8rem;
   font-weight: 850;
@@ -395,22 +528,20 @@ textarea:focus {
 
 .dashboardShell {
   display: grid;
-  gap: 18px;
-  margin: 0 auto;
-  max-width: 1440px;
+  gap: 14px;
 }
 
 .kpiGrid {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .kpiCard {
   background: #ffffff;
-  border: 1px solid #d7e0e7;
-  border-radius: 8px;
-  box-shadow: 0 14px 35px rgba(27, 43, 58, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: none;
   display: grid;
   gap: 8px;
   min-height: 104px;
@@ -448,7 +579,7 @@ textarea:focus {
 
 .dashboardGrid {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -500,7 +631,7 @@ textarea:focus {
 }
 
 .reportTable th {
-  background: #f7fafb;
+  background: #f8fafc;
   color: #17202a;
   font-size: 0.78rem;
   font-weight: 900;
@@ -634,7 +765,7 @@ textarea:focus {
 
 .notificationBell {
   background: #ffffff;
-  border: 1px solid #d7e0e7;
+  border: 1px solid var(--line);
   border-radius: 999px;
   color: #234255;
   font-weight: 900;
@@ -784,8 +915,7 @@ textarea:focus {
 }
 
 .alert {
-  margin: 0 auto 18px;
-  max-width: 1440px;
+  margin: 0 0 18px;
   padding: 12px 14px;
 }
 
@@ -818,6 +948,10 @@ textarea:focus {
 }
 
 @media (max-width: 1180px) {
+  .appShell {
+    grid-template-columns: 184px minmax(0, 1fr);
+  }
+
   .workspace {
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   }
@@ -840,7 +974,29 @@ textarea:focus {
 }
 
 @media (max-width: 820px) {
+  .loginShell {
+    grid-template-columns: 1fr;
+  }
+
+  .loginBrand {
+    min-height: 280px;
+    padding: 32px;
+  }
+
   .appShell {
+    grid-template-columns: 1fr;
+  }
+
+  .sideNav {
+    min-height: auto;
+    position: static;
+  }
+
+  .sideNav nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .appContent {
     padding: 18px;
   }
 
@@ -850,7 +1006,7 @@ textarea:focus {
   }
 
   .metrics {
-    justify-content: flex-start;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .workspace {
@@ -877,7 +1033,7 @@ textarea:focus {
   }
 
   .kpiGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .attachmentItem {
@@ -888,5 +1044,22 @@ textarea:focus {
   .notificationCenter {
     left: 0;
     right: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .sideNav nav,
+  .metrics,
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .topTools {
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .topTools input {
+    min-width: 0;
   }
 }
