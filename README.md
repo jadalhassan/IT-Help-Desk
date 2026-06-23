@@ -198,7 +198,12 @@ npm --prefix frontend run build
 
 ## Deployment
 
-The frontend is configured for GitHub Pages with base path `/IT-Help-Desk/`. The backend is container-ready with `backend/Dockerfile`, and `render.yaml` provides a ready starting point for a Docker web service.
+The production app is deployed as two services:
+
+- Frontend: GitHub Pages at `https://jadalhassan.github.io/IT-Help-Desk/`
+- Backend: Railway at `https://helpdesk-api-production-5964.up.railway.app`
+
+The frontend is configured for GitHub Pages with base path `/IT-Help-Desk/`. The backend is container-ready with the root `Dockerfile`, `backend/Dockerfile`, and `railway.json`.
 
 Frontend workflow:
 
@@ -211,20 +216,34 @@ Deployment files:
 ```text
 DEPLOYMENT.md
 DEMO.md
+Dockerfile
+railway.json
 backend/Dockerfile
 render.yaml
 ```
 
-Set a repository variable named `VITE_API_BASE` in GitHub Actions so the deployed frontend connects to the hosted backend, for example:
+The GitHub Actions repository variable `VITE_API_BASE` points the frontend at the Railway API:
 
 ```text
-https://helpdesk-api.onrender.com/api
+https://helpdesk-api-production-5964.up.railway.app/api
 ```
 
-Set backend environment variable `Cors__AllowedOrigins` to the deployed frontend origin, for example:
+Railway should include these backend environment variables:
 
 ```text
-https://jadalhassan.github.io
+ASPNETCORE_ENVIRONMENT=Production
+DatabaseProvider=Sqlite
+ConnectionStrings__DefaultConnection=Data Source=/data/helpdesk.db
+Jwt__Issuer=HelpDesk.Api
+Jwt__Audience=HelpDesk.Frontend
+Jwt__Secret=<long random secret, at least 32 characters>
+Cors__AllowedOrigins=https://jadalhassan.github.io
+```
+
+Backend health check:
+
+```text
+https://helpdesk-api-production-5964.up.railway.app/healthz
 ```
 
 See `DEPLOYMENT.md` for the full hosting checklist and `DEMO.md` for the final presentation/demo script.
