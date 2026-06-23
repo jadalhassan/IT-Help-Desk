@@ -37,11 +37,15 @@ public class DashboardController(AppDbContext db) : ControllerBase
     [HttpGet("charts/tasks-by-status")]
     public async Task<ActionResult<IEnumerable<StatusCountDto>>> GetTasksByStatus()
     {
-        var result = await VisibleTickets()
-            .GroupBy(ticket => ticket.Status)
+        var tickets = await VisibleTickets()
+            .Select(ticket => ticket.Status)
+            .ToListAsync();
+
+        var result = tickets
+            .GroupBy(status => status)
             .Select(group => new StatusCountDto(group.Key, group.Count()))
             .OrderBy(item => item.Status)
-            .ToListAsync();
+            .ToList();
 
         return Ok(result);
     }
@@ -91,7 +95,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
     public async Task<ActionResult<IEnumerable<RecentActivityDto>>> GetRecentActivity()
     {
         var visibleTicketIds = await VisibleTickets().Select(ticket => ticket.Id).ToListAsync();
-        var result = await db.ActivityLogs.AsNoTracking()
+        var result = await VisibleActivityLogs(db.ActivityLogs.AsNoTracking())
             .Include(log => log.ActorUser)
             .Where(log => visibleTicketIds.Contains(log.TicketId))
             .OrderByDescending(log => log.CreatedAtUtc)
@@ -106,6 +110,13 @@ public class DashboardController(AppDbContext db) : ControllerBase
             .ToListAsync();
 
         return Ok(result);
+    }
+
+    private IQueryable<ActivityLog> VisibleActivityLogs(IQueryable<ActivityLog> logs)
+    {
+        return CurrentRole() is "Admin" or "Agent"
+            ? logs
+            : logs.Where(log => log.ActionType != "InternalNoteAdded");
     }
 
     private IQueryable<Ticket> VisibleTickets()

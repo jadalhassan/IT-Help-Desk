@@ -13,7 +13,10 @@ namespace HelpDesk.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class TicketsController(AppDbContext db, INotificationService notificationService) : ControllerBase
+public class TicketsController(
+    AppDbContext db,
+    INotificationService notificationService,
+    IWebHostEnvironment environment) : ControllerBase
 {
     private static readonly string[] Categories = ["Bug", "Feature Request", "Support", "Billing", "General"];
     private static readonly string[] Priorities = ["Low", "Medium", "High", "Urgent"];
@@ -356,10 +359,33 @@ public class TicketsController(AppDbContext db, INotificationService notificatio
         await db.TicketComments.Where(comment => comment.TicketId == id).ExecuteDeleteAsync();
         await db.ActivityLogs.Where(log => log.TicketId == id).ExecuteDeleteAsync();
         await db.TicketStatusHistories.Where(history => history.TicketId == id).ExecuteDeleteAsync();
+        await DeleteTicketAttachmentsAsync(id);
+        await db.Notifications
+            .Where(notification => notification.RelatedEntityType == "ticket" && notification.RelatedEntityId == id.ToString())
+            .ExecuteDeleteAsync();
         db.Tickets.Remove(ticket);
         await db.SaveChangesAsync();
 
         return NoContent();
+    }
+
+    private async Task DeleteTicketAttachmentsAsync(int ticketId)
+    {
+        var attachments = await db.Attachments
+            .Where(attachment => attachment.RelatedEntityType == "ticket" && attachment.RelatedEntityId == ticketId.ToString())
+            .ToListAsync();
+
+        var uploadRoot = Path.GetFullPath(Path.Combine(environment.ContentRootPath, "Uploads"));
+        foreach (var attachment in attachments)
+        {
+            var fullPath = Path.GetFullPath(attachment.StoragePath);
+            if (fullPath.StartsWith(uploadRoot, StringComparison.OrdinalIgnoreCase) && System.IO.File.Exists(fullPath))
+            {
+                System.IO.File.Delete(fullPath);
+            }
+        }
+
+        db.Attachments.RemoveRange(attachments);
     }
 
     [HttpGet("/api/categories")]
@@ -514,6 +540,7 @@ public class TicketsController(AppDbContext db, INotificationService notificatio
             .Select(ToCommentDto)
             .ToList(),
         ticket.ActivityLogs
+            .Where(log => currentRole is "Admin" or "Agent" || log.ActionType != "InternalNoteAdded")
             .OrderBy(log => log.CreatedAtUtc)
             .Select(ToActivityDto)
             .ToList(),
