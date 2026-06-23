@@ -67,76 +67,42 @@ function LoginPanel({ onLogin }) {
 
   return (
     <main className="loginShell">
-      <section className="loginBrand">
-        <p className="brandMark">HelpDesk Pro</p>
-        <h1>IT Help Desk & Ticketing System</h1>
-        <p>Submit, assign, track, and resolve IT support requests from one centralized workspace.</p>
-      </section>
-      <section className="loginStage">
-        <form className="loginPanel" onSubmit={handleSubmit}>
-          <p className="eyebrow">Welcome Back</p>
-          <h2>Sign in to continue to your workspace</h2>
-          <label>
-            Email Address
-            <input
-              name="email"
-              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-              required
-              type="email"
-              value={form.email}
-            />
-          </label>
-          <label>
-            Password
-            <input
-              name="password"
-              onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
-              required
-              type="password"
-              value={form.password}
-            />
-          </label>
-          {error && <p className="inlineError">{error}</p>}
-          <button className="primaryButton" disabled={saving} type="submit">
-            {saving ? 'Signing in...' : 'Login'}
-          </button>
-          <button className="linkButton" type="button">Create New Account</button>
-          <p className="muted compact">Forgot password? Reset access credentials</p>
-        </form>
-      </section>
+      <form className="panel loginPanel" onSubmit={handleSubmit}>
+        <p className="eyebrow">IT Help Desk</p>
+        <h1>Ticket Management</h1>
+        <label>
+          Email
+          <input
+            name="email"
+            onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+            required
+            type="email"
+            value={form.email}
+          />
+        </label>
+        <label>
+          Password
+          <input
+            name="password"
+            onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+            required
+            type="password"
+            value={form.password}
+          />
+        </label>
+        {error && <p className="inlineError">{error}</p>}
+        <button className="primaryButton" disabled={saving} type="submit">
+          {saving ? 'Signing in...' : 'Sign In'}
+        </button>
+        <p className="muted compact">
+          Admin: admin@helpdesk.local / Admin@123
+          <br />
+          Agent: agent@helpdesk.local / Agent@123
+          <br />
+          User: user@helpdesk.local / User@123
+        </p>
+      </form>
     </main>
-  );
-}
-
-function AppSidebar({ activeView, onNavigate, session, onLogout }) {
-  const navItems = [
-    ['dashboard', 'Dashboard'],
-    ['tickets', 'Tickets'],
-    ['tickets', 'Create Ticket'],
-    ['reports', 'Reports'],
-  ];
-
-  return (
-    <aside className="sideNav">
-      <div className="sideBrand">HelpDesk Pro</div>
-      <nav aria-label="Primary navigation">
-        {navItems.map(([view, label]) => (
-          <button
-            className={activeView === view || (label === 'Create Ticket' && activeView === 'tickets') ? 'active' : ''}
-            key={label}
-            onClick={() => onNavigate(view)}
-            type="button"
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-      <div className="sideUser">
-        <strong>{session.fullName}</strong>
-        <span>{session.role}</span>
-        <button onClick={onLogout} type="button">Sign Out</button>
-      </div>
-    </aside>
   );
 }
 
@@ -581,85 +547,91 @@ export default function App() {
 
   return (
     <main className="appShell">
-      <AppSidebar activeView={activeView} onLogout={handleLogout} onNavigate={setActiveView} session={session} />
-      <section className="appContent">
-        <header className="topBar">
-          <div>
-            <p className="eyebrow">{session.role} workspace</p>
-            <h1>{activeView === 'dashboard' ? `${session.role} Dashboard` : activeView === 'reports' ? 'Reports Dashboard' : 'My Tickets'}</h1>
-          </div>
-          <div className="topTools">
-            <input aria-label="Search tickets" placeholder="Search tickets..." />
-            <NotificationBell />
-          </div>
-        </header>
-
-        <div className="metrics">
-          <span><strong>{metrics.total}</strong> Total Tickets</span>
-          <span><strong>{metrics.open}</strong> Open Tickets</span>
-          <span><strong>{metrics.assigned}</strong> Assigned</span>
-          <span><strong>{metrics.urgent}</strong> Urgent</span>
+      <header className="topBar">
+        <div>
+          <p className="eyebrow">{session.role} workspace</p>
+          <h1>Ticket Management</h1>
         </div>
+        <div className="metrics">
+          <span>{metrics.total} total</span>
+          <span>{metrics.open} open</span>
+          <span>{metrics.assigned} assigned</span>
+          <span>{metrics.urgent} urgent</span>
+          <NotificationBell />
+          <button className="ghostButton" onClick={handleLogout} type="button">Sign Out</button>
+        </div>
+      </header>
 
-        {(message || error) && <div className={error ? 'alert error' : 'alert success'}>{error || message}</div>}
+      {(message || error) && <div className={error ? 'alert error' : 'alert success'}>{error || message}</div>}
 
-        {activeView === 'dashboard' ? (
-          <DashboardPage />
-        ) : activeView === 'reports' ? (
-          <ReportsPage />
-        ) : (
-          <section className="workspace">
-            <TicketForm
-              categories={categories}
-              editingTicket={editingTicket}
-              onCancel={() => setEditingTicket(null)}
-              onSubmit={handleSubmit}
-              saving={saving}
-              userRole={session.role}
-            />
+      <nav className="viewTabs" aria-label="Workspace views">
+        <button className={activeView === 'tickets' ? 'active' : ''} onClick={() => setActiveView('tickets')} type="button">
+          Tickets
+        </button>
+        <button className={activeView === 'dashboard' ? 'active' : ''} onClick={() => setActiveView('dashboard')} type="button">
+          Dashboard
+        </button>
+        <button className={activeView === 'reports' ? 'active' : ''} onClick={() => setActiveView('reports')} type="button">
+          Reports
+        </button>
+      </nav>
 
-            <section className="panel listPanel">
-              <div className="panelHeader">
-                <div>
-                  <p className="eyebrow">Tickets</p>
-                  <h2>Queue</h2>
-                </div>
+      {activeView === 'dashboard' ? (
+        <DashboardPage />
+      ) : activeView === 'reports' ? (
+        <ReportsPage />
+      ) : (
+        <section className="workspace">
+          <TicketForm
+            categories={categories}
+            editingTicket={editingTicket}
+            onCancel={() => setEditingTicket(null)}
+            onSubmit={handleSubmit}
+            saving={saving}
+            userRole={session.role}
+          />
+
+          <section className="panel listPanel">
+            <div className="panelHeader">
+              <div>
+                <p className="eyebrow">Queue</p>
+                <h2>Tickets</h2>
               </div>
+            </div>
 
-              <TicketFilters categories={categories} filters={filters} onChange={setFilters} statuses={statuses} />
+            <TicketFilters categories={categories} filters={filters} onChange={setFilters} statuses={statuses} />
 
-              {loading ? (
-                <div className="emptyState">Loading tickets...</div>
-              ) : (
-                <TicketList
-                  tickets={tickets}
-                  selectedTicket={selectedTicket}
-                  onDelete={handleDelete}
-                  onEdit={(ticket) => {
-                    setEditingTicket(ticket);
-                    setSelectedTicket(ticket);
-                  }}
-                  onSelect={setSelectedTicket}
-                  userRole={session.role}
-                />
-              )}
-            </section>
-
-            <TicketDetail
-              agents={agents}
-              onAssign={async (ticketId, agentId) => refreshAfterChange(await assignTicket(ticketId, agentId), 'Ticket assigned successfully.')}
-              onComment={async (ticketId, comment) => {
-                await addTicketComment(ticketId, comment);
-                return refreshAfterChange(await getTicket(ticketId), 'Comment added successfully.');
-              }}
-              onStatusChange={async (ticketId, status) => refreshAfterChange(await updateTicketStatus(ticketId, status), 'Status updated successfully.')}
-              statuses={statuses}
-              ticket={selectedTicket}
-              userRole={session.role}
-            />
+            {loading ? (
+              <div className="emptyState">Loading tickets...</div>
+            ) : (
+              <TicketList
+                tickets={tickets}
+                selectedTicket={selectedTicket}
+                onDelete={handleDelete}
+                onEdit={(ticket) => {
+                  setEditingTicket(ticket);
+                  setSelectedTicket(ticket);
+                }}
+                onSelect={setSelectedTicket}
+                userRole={session.role}
+              />
+            )}
           </section>
-        )}
-      </section>
+
+          <TicketDetail
+            agents={agents}
+            onAssign={async (ticketId, agentId) => refreshAfterChange(await assignTicket(ticketId, agentId), 'Ticket assigned successfully.')}
+            onComment={async (ticketId, comment) => {
+              await addTicketComment(ticketId, comment);
+              return refreshAfterChange(await getTicket(ticketId), 'Comment added successfully.');
+            }}
+            onStatusChange={async (ticketId, status) => refreshAfterChange(await updateTicketStatus(ticketId, status), 'Status updated successfully.')}
+            statuses={statuses}
+            ticket={selectedTicket}
+            userRole={session.role}
+          />
+        </section>
+      )}
     </main>
   );
 }
