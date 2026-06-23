@@ -1,25 +1,41 @@
 # IT Help Desk Ticket Management System
 
-Full-stack ticket management system built with React, Vite, ASP.NET Core Web API, and SQLite by default.
+A full-stack help desk application for creating, assigning, tracking, reporting, and resolving IT support tickets. The frontend is built with React and Vite, and the backend is an ASP.NET Core Web API with JWT authentication and SQLite by default.
+
+## Live Demo
+
+- Website: `https://jadalhassan.github.io/IT-Help-Desk/`
+- API: `https://helpdesk-api-production-5964.up.railway.app`
+- Health check: `https://helpdesk-api-production-5964.up.railway.app/healthz`
+
+Demo accounts:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Admin | `admin@helpdesk.local` | `Admin@123` |
+| Agent | `agent@helpdesk.local` | `Agent@123` |
+| User | `user@helpdesk.local` | `User@123` |
 
 ## Features
 
-- Create, view, edit, update, and delete help desk tickets.
-- Assign tickets to categories: Bug, Feature Request, Support, Billing, and General.
-- Track priority, status, created date, and updated date.
-- Filter tickets by category.
-- View a reports workspace with ticket KPIs, breakdown charts, filterable tables, and PDF/Excel exports.
-- Use AI assistance for ticket categorization, priority recommendations, summaries, troubleshooting suggestions, and ticket-aware chat.
-- Validate required fields before saving.
-- Connect the React frontend directly to backend REST APIs.
-- Seed sample users and starter ticket data for local testing.
+- Ticket creation, editing, deletion, assignment, status updates, and comments.
+- Role-based workflows for admins, agents, and standard users.
+- Dashboard KPIs, status charts, activity trends, and recent activity.
+- Report workspace with filters, summary cards, charts, PDF export, and Excel export.
+- Attachments for ticket-related files.
+- Notifications with SignalR support.
+- Optional AI assistance for categorization, priority recommendations, summaries, troubleshooting steps, and ticket-aware chat.
+- Seeded demo users and starter tickets for local testing.
 
 ## Tech Stack
 
-- Frontend: React + Vite
-- Backend: ASP.NET Core Web API
-- Database: SQLite by default, PostgreSQL optional
-- Auth foundation: JWT authentication and seeded roles remain available
+| Layer | Technology |
+| --- | --- |
+| Frontend | React, Vite, React Query, Recharts |
+| Backend | ASP.NET Core Web API, SignalR |
+| Auth | JWT bearer authentication, role policies |
+| Database | SQLite by default, PostgreSQL optional |
+| Hosting | GitHub Pages frontend, Railway backend |
 
 ## Project Structure
 
@@ -29,48 +45,40 @@ IDS/
     Controllers/
     Data/
     Dtos/
+    Hubs/
     Models/
     Services/
+    Dockerfile
   frontend/
+    public/
     src/
+      features/
       App.jsx
       api.js
       index.css
+  .github/workflows/deploy-frontend-pages.yml
+  Dockerfile
+  railway.json
+  DEPLOYMENT.md
 ```
 
 ## Prerequisites
 
 - .NET SDK 9
-- Node.js 20+
-- Optional: PostgreSQL 16+
+- Node.js 20 or newer
+- Optional: Docker
+- Optional: PostgreSQL 16 or newer
 
-## Backend Setup
+## Local Setup
 
-From the `backend` folder:
-
-```powershell
-dotnet restore
-dotnet run
-```
-
-The API runs on the URL shown in the terminal. For a predictable local URL, run:
+Run the backend:
 
 ```powershell
-dotnet run --urls http://localhost:5000
+dotnet restore backend
+dotnet run --project backend --urls http://localhost:5000
 ```
 
-SQLite is configured in `backend/appsettings.json`:
-
-```json
-"DatabaseProvider": "Sqlite",
-"ConnectionStrings": {
-  "DefaultConnection": "Data Source=helpdesk.db"
-}
-```
-
-## Frontend Setup
-
-From the project root:
+Run the frontend from the project root:
 
 ```powershell
 npm install --prefix frontend
@@ -84,38 +92,55 @@ Open:
 http://localhost:5173/IT-Help-Desk/
 ```
 
-If your backend uses the default HTTPS URL, set `VITE_API_BASE` to that value instead, for example:
+## Build Checks
+
+Backend:
 
 ```powershell
-$env:VITE_API_BASE="https://localhost:7243/api"
+dotnet build backend
 ```
 
-## API Endpoints
+Frontend:
 
-- `GET /api/tickets` - list tickets
-- `GET /api/tickets?category=Bug` - list tickets by category
-- `GET /api/tickets/{id}` - get one ticket
-- `POST /api/tickets` - create ticket
-- `PUT /api/tickets/{id}` - update ticket
-- `DELETE /api/tickets/{id}` - delete ticket
-- `GET /api/categories` - list ticket categories
-- `POST /api/auth/login` - existing login endpoint
-- `GET /api/reports/tickets` - filterable ticket report data
-- `GET /api/reports/tickets/export/pdf` - export the filtered ticket report as PDF
-- `GET /api/reports/tickets/export/excel` - export the filtered ticket report as Excel `.xlsx`
-- `GET /api/reports/filters` - report filter options scoped to the current user
-- `GET /api/ai/status` - configured AI provider status
-- `POST /api/ai/tickets/{id}/categorize` - suggest a ticket category
-- `POST /api/ai/tickets/{id}/recommend-priority` - recommend ticket priority
-- `POST /api/ai/tickets/{id}/summarize` - summarize ticket details and comments
-- `POST /api/ai/tickets/{id}/troubleshooting` - suggest troubleshooting steps
-- `POST /api/ai/chat` - ticket-aware AI assistant chat
+```powershell
+npm --prefix frontend run lint
+npm --prefix frontend run build
+```
 
-Report endpoints follow the same visibility rules as tickets: admins can report across all tickets, agents see assigned tickets, and users see their own tickets.
+## API Overview
+
+Main endpoints:
+
+| Method | Endpoint | Description |
+| --- | --- | --- |
+| `POST` | `/api/auth/login` | Sign in and receive a JWT |
+| `GET` | `/api/tickets` | List visible tickets |
+| `GET` | `/api/tickets/{id}` | Get ticket details |
+| `POST` | `/api/tickets` | Create a ticket |
+| `PUT` | `/api/tickets/{id}` | Update a ticket |
+| `DELETE` | `/api/tickets/{id}` | Delete a ticket |
+| `POST` | `/api/tickets/{id}/assign` | Assign an agent |
+| `POST` | `/api/tickets/{id}/status` | Update ticket status |
+| `GET` | `/api/reports/tickets` | Get report data |
+| `GET` | `/api/reports/tickets/export/pdf` | Export report as PDF |
+| `GET` | `/api/reports/tickets/export/excel` | Export report as Excel |
+| `GET` | `/api/ai/status` | Check AI provider status |
+
+Valid priorities:
+
+```text
+Low, Medium, High, Urgent
+```
+
+Valid statuses:
+
+```text
+Open, In Progress, Resolved, Closed
+```
 
 ## AI Configuration
 
-AI features use backend environment variables only. No API keys are exposed to the frontend.
+AI features are configured only on the backend. No provider keys are exposed to the frontend.
 
 OpenAI:
 
@@ -146,89 +171,35 @@ $env:OLLAMA_MODEL="llama3.1"
 dotnet run --project backend
 ```
 
-If the provider is not configured, the AI panel remains visible but requests return a clear configuration error.
-
-## Ticket Payload
-
-```json
-{
-  "title": "Cannot access email",
-  "description": "User receives an invalid credentials message.",
-  "category": "Support",
-  "priority": "High",
-  "status": "Open"
-}
-```
-
-Valid priorities:
-
-```text
-Low, Medium, High, Urgent
-```
-
-Valid statuses:
-
-```text
-Open, In Progress, Resolved, Closed
-```
-
-## Seed Data
-
-The backend creates the SQLite database automatically and seeds starter tickets.
-
-Seed users:
-
-- Admin: `admin@helpdesk.local` / `Admin@123`
-- Agent: `agent@helpdesk.local` / `Agent@123`
-- User: `user@helpdesk.local` / `User@123`
-
-## Build
-
-Backend:
-
-```powershell
-dotnet build backend
-```
-
-Frontend:
-
-```powershell
-npm --prefix frontend run build
-```
+If no AI provider is configured, the AI panel remains visible but requests return a configuration message.
 
 ## Deployment
 
-The production app is deployed as two services:
+The app is deployed as two services:
 
-- Frontend: GitHub Pages at `https://jadalhassan.github.io/IT-Help-Desk/`
-- Backend: Railway at `https://helpdesk-api-production-5964.up.railway.app`
+- Frontend: GitHub Pages
+- Backend: Railway Docker service
 
-The frontend is configured for GitHub Pages with base path `/IT-Help-Desk/`. The backend is container-ready with the root `Dockerfile`, `backend/Dockerfile`, and `railway.json`.
-
-Frontend workflow:
+GitHub Pages builds `frontend/dist` using:
 
 ```text
 .github/workflows/deploy-frontend-pages.yml
 ```
 
-Deployment files:
-
-```text
-DEPLOYMENT.md
-DEMO.md
-Dockerfile
-railway.json
-backend/Dockerfile
-render.yaml
-```
-
-The GitHub Actions repository variable `VITE_API_BASE` points the frontend at the Railway API:
+The repository variable `VITE_API_BASE` must point to the hosted backend API:
 
 ```text
 https://helpdesk-api-production-5964.up.railway.app/api
 ```
 
-Railway should include these backend environment variables:
+Railway uses:
+
+```text
+Dockerfile
+railway.json
+```
+
+Required Railway variables:
 
 ```text
 ASPNETCORE_ENVIRONMENT=Production
@@ -240,10 +211,11 @@ Jwt__Secret=<long random secret, at least 32 characters>
 Cors__AllowedOrigins=https://jadalhassan.github.io
 ```
 
-Backend health check:
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full deployment checklist.
 
-```text
-https://helpdesk-api-production-5964.up.railway.app/healthz
-```
+## Notes
 
-See `DEPLOYMENT.md` for the full hosting checklist and `DEMO.md` for the final presentation/demo script.
+- SQLite is created automatically and seeded on startup.
+- For production persistence on Railway, keep the database path under `/data`.
+- PostgreSQL can be used by setting `DatabaseProvider=Postgresql` and replacing `ConnectionStrings__DefaultConnection`.
+- The deployed frontend must be rebuilt after changing `VITE_API_BASE`.
