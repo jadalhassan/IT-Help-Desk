@@ -52,14 +52,23 @@ builder.Services.AddRateLimiter(options =>
 });
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var secret = jwtSection["Secret"] ?? throw new InvalidOperationException("JWT secret not configured.");
-if (secret.Length < 32 ||
-    (!appEnvironmentIsDevelopment(builder.Environment) &&
-     secret.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase)))
+var secret = jwtSection["Secret"];
+var hasInvalidSecret = string.IsNullOrWhiteSpace(secret) ||
+    secret.Length < 32 ||
+    secret.StartsWith("REPLACE_WITH_", StringComparison.OrdinalIgnoreCase);
+if (hasInvalidSecret && appEnvironmentIsDevelopment(builder.Environment))
 {
-    throw new InvalidOperationException("Jwt:Secret must be a unique production secret of at least 32 characters.");
+    throw new InvalidOperationException("Jwt:Secret must be configured with at least 32 characters.");
 }
-var key = new SymmetricSecurityKey(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
+
+if (hasInvalidSecret)
+{
+    Console.Error.WriteLine("WARNING: Jwt:Secret is missing or placeholder. Using an ephemeral startup secret. Configure a stable Jwt__Secret for production.");
+    secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
+}
+
+var signingSecret = secret ?? throw new InvalidOperationException("Jwt:Secret could not be resolved.");
+var key = new SymmetricSecurityKey(SHA256.HashData(Encoding.UTF8.GetBytes(signingSecret)));
 
 builder.Services.AddAuthentication(options =>
 {

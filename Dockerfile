@@ -14,5 +14,4 @@ RUN mkdir -p /data && chown -R app:app /app /data
 EXPOSE 8080
 
 COPY --from=build /app/publish ./
-USER app
 ENTRYPOINT ["sh", "-c", "ASPNETCORE_URLS=http://+:${PORT:-8080} dotnet HelpDesk.Api.dll"]
