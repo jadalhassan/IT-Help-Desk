@@ -1,121 +1,147 @@
 # Final Presentation and Demo Script
 
-## Slide 1: IT Help Desk Ticket Management System
+Use this script to present the project as a polished help desk product rather than a code walkthrough.
 
-Claim: The system centralizes support requests, assignment, reporting, notifications, attachments, and AI assistance in one full-stack workflow.
+## 1. Opening
 
-Demo proof: Show the deployed app landing/login screen.
+Claim: This is a full-stack IT Help Desk Ticket Management System that centralizes requests, triage, assignment, collaboration, notifications, reporting, exports, attachments, and optional AI assistance.
 
-## Slide 2: Problem and Objective
+Show: Login screen, polished layout, and role shortcuts.
 
-Claim: Help desk teams need a faster way to capture, triage, track, and report support work.
-
-Proof points:
-
-- Users can create tickets with category, priority, and status.
-- Agents can assign, comment, and update ticket progress.
-- Admins can view broader operational reporting.
-
-## Slide 3: Architecture
-
-Claim: A React frontend communicates with an ASP.NET Core API backed by SQLite locally and optional PostgreSQL in production.
-
-Proof object:
+## 2. Architecture
 
 ```text
-React + Vite
+React + Vite frontend
     |
-REST API + SignalR
+JWT-secured REST API + SignalR
     |
-ASP.NET Core Controllers
+ASP.NET Core controllers and services
     |
 Entity Framework Core
     |
-SQLite or PostgreSQL
+SQLite locally / PostgreSQL optionally in production
 ```
 
-## Slide 4: Core Ticket Workflow
+Mention:
 
-Claim: The main workflow supports the full ticket lifecycle from request to resolution.
+- JWT authentication with Admin, Agent, and User roles.
+- SignalR for real-time notification refresh.
+- SQLite auto-setup for demos.
+- PostgreSQL-ready configuration for production.
+- AI provider keys stay server-side.
 
-Demo steps:
+## 3. User workflow
 
-1. Log in as `user@helpdesk.local`.
-2. Create a new ticket.
-3. Log in as `agent@helpdesk.local`.
-4. Assign the ticket, update its status, and add a comment.
-5. Show the updated ticket activity.
+Login as:
 
-## Slide 5: Dashboard and Reporting
+```text
+user@helpdesk.local / User@123
+```
 
-Claim: The reporting workspace turns ticket activity into operational insight.
+Demo:
 
-Demo steps:
+1. Create a ticket with title, description, category, and priority.
+2. Show that the user can track status and add a public comment.
+3. Upload a safe attachment if available.
+4. Explain that users see their own tickets, not the whole organization.
 
-1. Open the dashboard.
-2. Show KPI cards and charts.
+## 4. Agent workflow
+
+Login as:
+
+```text
+agent@helpdesk.local / Agent@123
+```
+
+Demo:
+
+1. Show the agent queue: assigned tickets plus unassigned work.
+2. Open the new unassigned ticket.
+3. Click **Claim Ticket**.
+4. Move status through `Assigned`, `In Progress`, `Waiting for User`, or `Resolved`.
+5. Add an internal note and a public comment.
+6. Show status timeline and audit trail.
+
+Key line: Agents do not need admin power to take ownership of unassigned work.
+
+## 5. Admin workflow
+
+Login as:
+
+```text
+admin@helpdesk.local / Admin@123
+```
+
+Demo:
+
+1. Show broad ticket visibility.
+2. Assign or reassign a ticket to an agent.
+3. Edit ticket metadata if needed.
+4. Delete only if you want to demonstrate administrative control.
+5. Show notifications after workflow changes.
+
+## 6. Dashboard and reports
+
+Demo:
+
+1. Open Dashboard.
+2. Show KPI cards, status distribution, trend chart, and recent activity.
 3. Open Reports.
-4. Filter ticket data.
-5. Export PDF or Excel.
+4. Filter by status, priority, category, date, or agent.
+5. Export PDF and Excel.
 
-## Slide 6: Attachments and Notifications
+Key line: Reports are not decorative; they answer operational questions such as backlog, priority pressure, resolution speed, and agent workload.
 
-Claim: The system keeps ticket evidence and status changes connected to the workflow.
+## 7. Attachments and AI
 
-Demo steps:
+Demo:
 
-1. Upload an attachment to a ticket.
-2. Show the attachment list and download action.
-3. Trigger a ticket update.
-4. Open the notification center.
+1. Upload a permitted file type: PNG, JPG, WEBP, PDF, DOCX, XLSX, or TXT.
+2. Show download and delete permissions.
+3. Open the AI assistant panel.
+4. If an AI provider is configured, run summarize or troubleshooting.
+5. If no provider is configured, show the graceful configuration message.
 
-## Slide 7: AI Assistance
+## 8. Deployment readiness
 
-Claim: AI support helps agents summarize, categorize, prioritize, and troubleshoot tickets when a provider is configured.
+Mention:
 
-Demo steps:
+- Backend Docker build is available from the root `Dockerfile`.
+- Railway config uses `/healthz`.
+- Render config is included as an alternative host reference.
+- GitHub Pages workflow builds the frontend.
+- `VITE_API_BASE` connects the deployed frontend to the backend API.
+- Production rejects placeholder JWT secrets.
+- Demo seeding can be disabled with `DemoMode=false`.
 
-1. Open the AI assistant panel.
-2. Show provider status.
-3. Run categorization or summary if API keys are configured.
-4. If no provider is configured, show the clear configuration message.
+## 9. Validation commands
 
-## Slide 8: Deployment
+Run before presenting:
 
-Claim: The frontend is ready for GitHub Pages, and the backend is containerized for cloud hosting.
+```powershell
+dotnet restore backend
+dotnet build backend --no-restore
+npm install --prefix frontend
+npm --prefix frontend run lint
+npm --prefix frontend run build
+```
 
-Proof points:
+Smoke-test:
 
-- `.github/workflows/deploy-frontend-pages.yml` deploys the frontend.
-- `backend/Dockerfile` packages the API.
-- `render.yaml` documents a backend hosting configuration.
-- `VITE_API_BASE` connects the deployed frontend to the hosted API.
+```powershell
+dotnet run --project backend --no-build --urls http://127.0.0.1:5088
+Invoke-RestMethod http://127.0.0.1:5088/healthz
+```
 
-## Slide 9: Validation
+## 10. Closing path
 
-Claim: The project is build-ready and demo-ready.
+Recommended live demo order:
 
-Checks completed:
+1. User creates a request.
+2. Agent claims it and starts work.
+3. Agent comments, attaches evidence, and updates status.
+4. Admin reviews dashboard and reports.
+5. Export PDF/Excel.
+6. Show notifications and AI status.
 
-- `dotnet build backend`
-- `npm --prefix frontend run build`
-
-Known deployment inputs:
-
-- Hosted backend URL.
-- Production JWT secret.
-- GitHub repository variable `VITE_API_BASE`.
-- Backend CORS origin.
-
-## Slide 10: Closing
-
-Claim: The application delivers a complete help desk workflow with a practical deployment path and a clear demo story.
-
-Final demo path:
-
-1. Login.
-2. Create ticket.
-3. Assign and update.
-4. Review dashboard.
-5. Export report.
-6. Show notifications, attachments, and AI status.
+Keep the story simple: request comes in, work is owned, progress is visible, history is auditable, reporting is exportable.

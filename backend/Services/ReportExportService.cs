@@ -1,133 +1,227 @@
 using System.Globalization;
-using System.IO.Compression;
-using System.Text;
-using System.Xml.Linq;
+using ClosedXML.Excel;
 using HelpDesk.Api.Dtos;
+using PdfSharpCore.Drawing;
+using PdfSharpCore.Pdf;
 
 namespace HelpDesk.Api.Services;
 
-public class ReportExportService : IReportExportService
+public sealed class ReportExportService : IReportExportService
 {
+    private static readonly XColor Navy = XColor.FromArgb(18, 39, 66);
+    private static readonly XColor Blue = XColor.FromArgb(42, 111, 151);
+    private static readonly XColor Slate = XColor.FromArgb(83, 101, 120);
+    private static readonly XColor Pale = XColor.FromArgb(241, 245, 249);
+
     public byte[] CreatePdf(TicketReportDto report, DateTime generatedAtUtc)
     {
-        var lines = new List<string>
+        using var document = new PdfDocument();
+        document.Info.Title = "IT Help Desk Ticket Report";
+        document.Info.Author = "IT Help Desk";
+
+        var rows = report.Tickets.ToList();
+        var pageNumber = 0;
+        for (var offset = 0; offset < Math.Max(1, rows.Count); offset += 18)
         {
-            "IT Help Desk Ticket Report",
-            $"Generated: {generatedAtUtc:yyyy-MM-dd HH:mm} UTC",
-            $"Filters: {FormatFilters(report.Filters)}",
-            $"Total: {report.Summary.TotalTickets} | Open: {report.Summary.OpenTickets} | Pending: {report.Summary.PendingTickets} | Resolved: {report.Summary.ResolvedTickets} | Closed: {report.Summary.ClosedTickets}",
-            "",
-            "ID | Title | Status | Priority | Category | Agent | Created | Resolved"
-        };
+            pageNumber++;
+            var page = document.AddPage();
+            page.Orientation = PdfSharpCore.PageOrientation.Landscape;
+            page.Size = PdfSharpCore.PageSize.A4;
 
-        lines.AddRange(report.Tickets.Select(ticket =>
-            $"{ticket.Id} | {Trim(ticket.Title, 34)} | {ticket.Status} | {ticket.Priority} | {ticket.Category} | {Trim(ticket.AssignedAgentName, 18)} | {ticket.CreatedAtUtc:yyyy-MM-dd} | {(ticket.ResolvedAtUtc.HasValue ? ticket.ResolvedAtUtc.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "-")}"));
+            using var graphics = XGraphics.FromPdfPage(page);
+            DrawPage(graphics, page, report, rows.Skip(offset).Take(18).ToList(), generatedAtUtc, pageNumber);
+        }
 
-        return SimplePdf.Create(lines);
+        using var stream = new MemoryStream();
+        document.Save(stream, closeStream: false);
+        return stream.ToArray();
     }
 
     public byte[] CreateExcel(TicketReportDto report, DateTime generatedAtUtc)
     {
-        using var stream = new MemoryStream();
-        using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true))
+        using var workbook = new XLWorkbook();
+        var summary = workbook.Worksheets.Add("Summary");
+        var data = workbook.Worksheets.Add("Tickets");
+
+        summary.ShowGridLines = false;
+        summary.Cell("A1").Value = "IT Help Desk Ticket Report";
+        summary.Range("A1:F1").Merge().Style
+            .Fill.SetBackgroundColor(XLColor.FromHtml("#122742"))
+            .Font.SetFontColor(XLColor.White)
+            .Font.SetBold()
+            .Font.SetFontSize(18);
+        summary.Row(1).Height = 30;
+
+        summary.Cell("A3").Value = "Generated";
+        summary.Cell("B3").Value = generatedAtUtc;
+        summary.Cell("B3").Style.DateFormat.Format = "yyyy-mm-dd hh:mm \"UTC\"";
+        summary.Cell("A4").Value = "Filters";
+        summary.Cell("B4").Value = FormatFilters(report.Filters);
+
+        var metrics = new (string Label, object? Value)[]
         {
-            AddEntry(archive, "[Content_Types].xml", ContentTypesXml());
-            AddEntry(archive, "_rels/.rels", RelationshipsXml());
-            AddEntry(archive, "xl/workbook.xml", WorkbookXml());
-            AddEntry(archive, "xl/_rels/workbook.xml.rels", WorkbookRelationshipsXml());
-            AddEntry(archive, "xl/styles.xml", StylesXml());
-            AddEntry(archive, "xl/worksheets/sheet1.xml", WorksheetXml(report, generatedAtUtc));
+            ("Total", report.Summary.TotalTickets),
+            ("Open", report.Summary.OpenTickets),
+            ("Pending", report.Summary.PendingTickets),
+            ("Resolved", report.Summary.ResolvedTickets),
+            ("Closed", report.Summary.ClosedTickets),
+            ("Overdue", report.Summary.OverdueTickets),
+            ("Avg resolution (hours)", report.Summary.AverageResolutionHours)
+        };
+
+        for (var index = 0; index < metrics.Length; index++)
+        {
+            var row = 7 + index;
+            summary.Cell(row, 1).Value = metrics[index].Label;
+            summary.Cell(row, 2).Value = XLCellValue.FromObject(metrics[index].Value ?? string.Empty);
         }
 
+        summary.Range("A7:B13").Style.Border.OutsideBorder = XLBorderStyleValues.Thin;
+        summary.Range("A7:A13").Style.Font.Bold = true;
+        summary.Range("A7:A13").Style.Fill.BackgroundColor = XLColor.FromHtml("#E8F1F7");
+        summary.Columns("A:B").AdjustToContents();
+        summary.Column("B").Width = Math.Min(summary.Column("B").Width, 64);
+        summary.SheetView.FreezeRows(1);
+
+        var headers = new[]
+        {
+            "Ticket ID", "Title", "Status", "Priority", "Category", "Assigned Agent",
+            "Requester", "Created", "Updated", "Resolved", "Resolution Hours"
+        };
+        for (var column = 0; column < headers.Length; column++)
+        {
+            data.Cell(1, column + 1).Value = headers[column];
+        }
+
+        for (var index = 0; index < report.Tickets.Count; index++)
+        {
+            var ticket = report.Tickets[index];
+            var row = index + 2;
+            data.Cell(row, 1).Value = ticket.Id;
+            data.Cell(row, 2).Value = ticket.Title;
+            data.Cell(row, 3).Value = ticket.Status;
+            data.Cell(row, 4).Value = ticket.Priority;
+            data.Cell(row, 5).Value = ticket.Category;
+            data.Cell(row, 6).Value = ticket.AssignedAgentName;
+            data.Cell(row, 7).Value = ticket.CreatorName;
+            data.Cell(row, 8).Value = ticket.CreatedAtUtc;
+            data.Cell(row, 9).Value = ticket.UpdatedAtUtc;
+            if (ticket.ResolvedAtUtc.HasValue)
+            {
+                data.Cell(row, 10).Value = ticket.ResolvedAtUtc.Value;
+            }
+            if (ticket.ResolutionHours.HasValue)
+            {
+                data.Cell(row, 11).Value = ticket.ResolutionHours.Value;
+            }
+        }
+
+        var lastRow = Math.Max(2, report.Tickets.Count + 1);
+        var table = data.Range(1, 1, lastRow, headers.Length).CreateTable("TicketReport");
+        table.Theme = XLTableTheme.TableStyleMedium2;
+        data.SheetView.FreezeRows(1);
+        data.Range(2, 8, lastRow, 10).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+        data.Range(2, 11, lastRow, 11).Style.NumberFormat.Format = "0.0";
+        data.Columns().AdjustToContents();
+        data.Column(2).Width = Math.Min(data.Column(2).Width, 48);
+        data.Column(2).Style.Alignment.WrapText = true;
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
         return stream.ToArray();
     }
 
-    private static string WorksheetXml(TicketReportDto report, DateTime generatedAtUtc)
+    private static void DrawPage(
+        XGraphics graphics,
+        PdfPage page,
+        TicketReportDto report,
+        IReadOnlyList<TicketReportRowDto> rows,
+        DateTime generatedAtUtc,
+        int pageNumber)
     {
-        var rows = new List<IReadOnlyList<object?>>
+        var titleFont = new XFont("Arial", 20, XFontStyle.Bold);
+        var headingFont = new XFont("Arial", 10, XFontStyle.Bold);
+        var bodyFont = new XFont("Arial", 8, XFontStyle.Regular);
+        var smallFont = new XFont("Arial", 7, XFontStyle.Regular);
+        var whiteBrush = XBrushes.White;
+
+        graphics.DrawRectangle(new XSolidBrush(Navy), 0, 0, page.Width, 76);
+        graphics.DrawString("IT Help Desk Ticket Report", titleFont, whiteBrush, new XPoint(32, 38));
+        graphics.DrawString(
+            $"Generated {generatedAtUtc:yyyy-MM-dd HH:mm} UTC  |  Page {pageNumber}",
+            bodyFont,
+            whiteBrush,
+            new XPoint(34, 58));
+
+        var metrics = new[]
         {
-            new object?[] { "IT Help Desk Ticket Report" },
-            new object?[] { "Generated", $"{generatedAtUtc:yyyy-MM-dd HH:mm} UTC" },
-            new object?[] { "Filters", FormatFilters(report.Filters) },
-            new object?[] { "Total Tickets", report.Summary.TotalTickets, "Open", report.Summary.OpenTickets, "Pending", report.Summary.PendingTickets, "Resolved", report.Summary.ResolvedTickets, "Closed", report.Summary.ClosedTickets },
-            Array.Empty<object?>(),
-            new object?[] { "Ticket ID", "Title", "Status", "Priority", "Category", "Assigned Agent", "Created By", "Created Date", "Updated Date", "Resolved Date", "Resolution Hours" }
+            ("Total", report.Summary.TotalTickets),
+            ("Open", report.Summary.OpenTickets),
+            ("Pending", report.Summary.PendingTickets),
+            ("Resolved", report.Summary.ResolvedTickets),
+            ("Overdue", report.Summary.OverdueTickets)
         };
-
-        rows.AddRange(report.Tickets.Select(ticket => new object?[]
+        var cardWidth = 118d;
+        for (var index = 0; index < metrics.Length; index++)
         {
-            ticket.Id,
-            ticket.Title,
-            ticket.Status,
-            ticket.Priority,
-            ticket.Category,
-            ticket.AssignedAgentName,
-            ticket.CreatorName,
-            ticket.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
-            ticket.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
-            ticket.ResolvedAtUtc?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
-            ticket.ResolutionHours.HasValue ? Math.Round(ticket.ResolutionHours.Value, 2) : null
-        }));
+            var x = 32 + index * (cardWidth + 10);
+            graphics.DrawRectangle(new XSolidBrush(Pale), x, 92, cardWidth, 48);
+            graphics.DrawString(metrics[index].Item1, smallFont, new XSolidBrush(Slate), new XPoint(x + 10, 109));
+            graphics.DrawString(metrics[index].Item2.ToString(CultureInfo.InvariantCulture), headingFont, new XSolidBrush(Navy), new XPoint(x + 10, 130));
+        }
 
-        var sheetData = new StringBuilder();
-        for (var r = 0; r < rows.Count; r++)
+        graphics.DrawString($"Filters: {FormatFilters(report.Filters)}", bodyFont, new XSolidBrush(Slate), new XPoint(32, 160));
+
+        var columns = new[]
         {
-            sheetData.Append($"<row r=\"{r + 1}\">");
-            var row = rows[r];
-            for (var c = 0; c < row.Count; c++)
+            ("ID", 34d), ("Title", 220d), ("Status", 80d), ("Priority", 62d),
+            ("Category", 88d), ("Agent", 108d), ("Created", 82d)
+        };
+        var tableX = 32d;
+        var tableY = 180d;
+        var rowHeight = 19d;
+        var xCursor = tableX;
+        foreach (var (label, width) in columns)
+        {
+            graphics.DrawRectangle(new XSolidBrush(Blue), xCursor, tableY, width, 24);
+            graphics.DrawString(label, headingFont, whiteBrush, new XRect(xCursor + 5, tableY + 5, width - 10, 16));
+            xCursor += width;
+        }
+
+        for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
+        {
+            var ticket = rows[rowIndex];
+            var values = new[]
             {
-                sheetData.Append(Cell(c + 1, r + 1, row[c], r is 0 or 5 ? 1 : 0));
+                ticket.Id.ToString(CultureInfo.InvariantCulture),
+                Trim(ticket.Title, 48),
+                ticket.Status,
+                ticket.Priority,
+                ticket.Category,
+                Trim(ticket.AssignedAgentName, 20),
+                ticket.CreatedAtUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            };
+            var y = tableY + 24 + rowIndex * rowHeight;
+            xCursor = tableX;
+            for (var columnIndex = 0; columnIndex < columns.Length; columnIndex++)
+            {
+                var width = columns[columnIndex].Item2;
+                graphics.DrawRectangle(
+                    rowIndex % 2 == 0 ? XBrushes.White : new XSolidBrush(Pale),
+                    xCursor,
+                    y,
+                    width,
+                    rowHeight);
+                graphics.DrawRectangle(new XPen(XColor.FromArgb(220, 228, 236), 0.5), xCursor, y, width, rowHeight);
+                graphics.DrawString(values[columnIndex], bodyFont, new XSolidBrush(Navy), new XRect(xCursor + 5, y + 5, width - 10, 12));
+                xCursor += width;
             }
-            sheetData.Append("</row>");
         }
 
-        return $"""
-            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-            <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-              <cols>
-                <col min="1" max="1" width="12" customWidth="1"/>
-                <col min="2" max="2" width="42" customWidth="1"/>
-                <col min="3" max="7" width="18" customWidth="1"/>
-                <col min="8" max="11" width="20" customWidth="1"/>
-              </cols>
-              <sheetData>{sheetData}</sheetData>
-            </worksheet>
-            """;
-    }
-
-    private static string Cell(int column, int row, object? value, int style)
-    {
-        if (value is null)
+        if (rows.Count == 0)
         {
-            return string.Empty;
+            graphics.DrawString("No tickets matched the selected filters.", bodyFont, new XSolidBrush(Slate), new XPoint(38, 225));
         }
-
-        var reference = $"{ColumnName(column)}{row}";
-        if (value is int or long or double or decimal)
-        {
-            return $"<c r=\"{reference}\" s=\"{style}\"><v>{Convert.ToString(value, CultureInfo.InvariantCulture)}</v></c>";
-        }
-
-        return $"<c r=\"{reference}\" s=\"{style}\" t=\"inlineStr\"><is><t>{Escape(value.ToString() ?? string.Empty)}</t></is></c>";
-    }
-
-    private static string ColumnName(int column)
-    {
-        var name = string.Empty;
-        while (column > 0)
-        {
-            column--;
-            name = (char)('A' + column % 26) + name;
-            column /= 26;
-        }
-        return name;
-    }
-
-    private static void AddEntry(ZipArchive archive, string path, string content)
-    {
-        var entry = archive.CreateEntry(path);
-        using var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false));
-        writer.Write(content.Trim());
     }
 
     private static string FormatFilters(TicketReportFiltersDto filters)
@@ -140,7 +234,7 @@ public class ReportExportService : IReportExportService
             filters.Priority is null ? null : $"priority {filters.Priority}",
             filters.Category is null ? null : $"category {filters.Category}",
             filters.AssignedAgentId is null ? null : $"agent #{filters.AssignedAgentId}",
-            filters.CreatorUserId is null ? null : $"creator #{filters.CreatorUserId}",
+            filters.CreatorUserId is null ? null : $"requester #{filters.CreatorUserId}",
             filters.Search is null ? null : $"search \"{filters.Search}\""
         }.Where(part => part is not null);
 
@@ -148,118 +242,4 @@ public class ReportExportService : IReportExportService
     }
 
     private static string Trim(string value, int max) => value.Length <= max ? value : value[..(max - 3)] + "...";
-
-    private static string Escape(string value) => System.Security.SecurityElement.Escape(value) ?? string.Empty;
-
-    private static string ContentTypesXml() => """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-          <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-          <Default Extension="xml" ContentType="application/xml"/>
-          <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
-          <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-          <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
-        </Types>
-        """;
-
-    private static string RelationshipsXml() => """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
-        </Relationships>
-        """;
-
-    private static string WorkbookXml() => """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-          <sheets><sheet name="Ticket Report" sheetId="1" r:id="rId1"/></sheets>
-        </workbook>
-        """;
-
-    private static string WorkbookRelationshipsXml() => """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-          <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-          <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-        </Relationships>
-        """;
-
-    private static string StylesXml() => """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-          <fonts count="2"><font/><font><b/></font></fonts>
-          <fills count="1"><fill><patternFill patternType="none"/></fill></fills>
-          <borders count="1"><border/></borders>
-          <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-          <cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs>
-        </styleSheet>
-        """;
-
-    private static class SimplePdf
-    {
-        public static byte[] Create(IReadOnlyList<string> lines)
-        {
-            using var output = new MemoryStream();
-            var objects = new List<string>();
-            var pageObjectIds = new List<int>();
-            var contentObjectIds = new List<int>();
-            var pages = lines.Chunk(42).ToList();
-
-            objects.Add("<< /Type /Catalog /Pages 2 0 R >>");
-            objects.Add(string.Empty);
-
-            foreach (var pageLines in pages)
-            {
-                var contentId = objects.Count + 1;
-                contentObjectIds.Add(contentId);
-                objects.Add(ContentStream(pageLines));
-                var pageId = objects.Count + 1;
-                pageObjectIds.Add(pageId);
-                objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 {pages.Count * 2 + 3} 0 R >> >> /Contents {contentId} 0 R >>");
-            }
-
-            objects.Add($"<< /Type /Pages /Kids [{string.Join(' ', pageObjectIds.Select(id => $"{id} 0 R"))}] /Count {pageObjectIds.Count} >>");
-            var pagesObject = objects.Count;
-            objects[1] = objects[^1];
-            objects.RemoveAt(objects.Count - 1);
-            objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-
-            var writer = new StreamWriter(output, Encoding.ASCII, leaveOpen: true);
-            writer.Write("%PDF-1.4\n");
-            var offsets = new List<long> { 0 };
-            for (var i = 0; i < objects.Count; i++)
-            {
-                offsets.Add(output.Position);
-                writer.Write($"{i + 1} 0 obj\n{objects[i]}\nendobj\n");
-                writer.Flush();
-            }
-
-            var xref = output.Position;
-            writer.Write($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
-            foreach (var offset in offsets.Skip(1))
-            {
-                writer.Write($"{offset:0000000000} 00000 n \n");
-            }
-            writer.Write($"trailer\n<< /Size {objects.Count + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF");
-            writer.Flush();
-            return output.ToArray();
-        }
-
-        private static string ContentStream(IEnumerable<string> lines)
-        {
-            var text = new StringBuilder("BT /F1 10 Tf 36 552 Td 13 TL\n");
-            foreach (var line in lines)
-            {
-                text.Append('(').Append(EscapePdf(line)).Append(") Tj T*\n");
-            }
-            text.Append("ET");
-            var content = text.ToString();
-            return $"<< /Length {Encoding.ASCII.GetByteCount(content)} >>\nstream\n{content}\nendstream";
-        }
-
-        private static string EscapePdf(string value) => value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("(", "\\(", StringComparison.Ordinal)
-            .Replace(")", "\\)", StringComparison.Ordinal);
-    }
 }

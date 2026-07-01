@@ -1,49 +1,15 @@
 # Deployment Guide
 
-This project deploys as two services:
+The application deploys as two services:
 
-- Frontend: static React/Vite build on GitHub Pages.
-- Backend: ASP.NET Core API hosted on Railway as a Docker service.
+- Frontend: static React/Vite build, usually GitHub Pages.
+- Backend: ASP.NET Core API container, Railway or Render.
 
-## 1. Backend Hosting: Railway
+## Backend: Railway
 
-Production backend:
+Railway should build from the root `Dockerfile`.
 
-```text
-https://helpdesk-api-production-5964.up.railway.app
-```
-
-The repository includes a root `Dockerfile` and `railway.json` so Railway builds the ASP.NET Core API instead of treating the repo as a Node app.
-
-Railway config files:
-
-```text
-Dockerfile
-railway.json
-backend/Dockerfile
-```
-
-Required backend environment variables:
-
-```text
-ASPNETCORE_ENVIRONMENT=Production
-DatabaseProvider=Sqlite
-ConnectionStrings__DefaultConnection=Data Source=/data/helpdesk.db
-Jwt__Issuer=HelpDesk.Api
-Jwt__Audience=HelpDesk.Frontend
-Jwt__Secret=<long random secret, at least 32 characters>
-Cors__AllowedOrigins=https://jadalhassan.github.io
-```
-
-The Docker entrypoint binds ASP.NET Core to Railway's injected `PORT`, falling back to `8080` locally.
-
-Health check:
-
-```text
-https://helpdesk-api-production-5964.up.railway.app/healthz
-```
-
-Railway should use:
+Required settings:
 
 ```text
 Builder: Dockerfile
@@ -51,66 +17,112 @@ Dockerfile Path: Dockerfile
 Healthcheck Path: /healthz
 ```
 
-If the frontend is served from a different origin, update `Cors__AllowedOrigins`. Do not include a trailing slash.
+Required environment variables:
 
-For PostgreSQL hosting, change:
+```text
+ASPNETCORE_ENVIRONMENT=Production
+DemoMode=false
+DatabaseProvider=Sqlite
+ConnectionStrings__DefaultConnection=Data Source=/data/helpdesk.db
+Jwt__Issuer=HelpDesk.Api
+Jwt__Audience=HelpDesk.Frontend
+Jwt__Secret=<unique random secret, at least 32 characters>
+Cors__AllowedOrigins=https://your-github-user.github.io
+Uploads__MaxFileSizeMb=10
+BootstrapAdmin__Email=admin@example.com
+BootstrapAdmin__Password=<strong password at least 12 characters>
+BootstrapAdmin__FullName=System Administrator
+```
+
+Notes:
+
+- Keep SQLite under `/data` on Railway so it survives restarts when a volume is mounted.
+- Do not set `DemoMode=true` in production unless the deployment is intentionally public/demo-only.
+- Production startup fails if `Jwt__Secret` is missing, too short, or still uses the placeholder.
+- If the frontend origin changes, update `Cors__AllowedOrigins` without a trailing slash.
+- `/healthz` returns JSON including API status and database connectivity.
+
+PostgreSQL option:
 
 ```text
 DatabaseProvider=Postgresql
 ConnectionStrings__DefaultConnection=<postgres connection string>
 ```
 
-## 2. Frontend Hosting
+## Backend: Render
 
-The workflow at `.github/workflows/deploy-frontend-pages.yml` builds and deploys `frontend/dist` to GitHub Pages.
+`render.yaml` is included as an example service definition. If using Render:
+
+1. Create a Web Service from the repository.
+2. Use Docker as the environment.
+3. Point the health check to `/healthz`.
+4. Set the same production variables listed above.
+5. Use PostgreSQL for durable production storage unless you have configured persistent disk for SQLite.
+
+## Frontend: GitHub Pages
+
+The workflow at `.github/workflows/deploy-frontend-pages.yml` builds `frontend/dist`.
 
 Repository settings:
 
-1. Enable GitHub Pages with source set to GitHub Actions.
-2. Add a repository variable named `VITE_API_BASE`.
-3. Set `VITE_API_BASE` to the deployed backend API URL:
+1. Enable GitHub Pages.
+2. Set Pages source to GitHub Actions.
+3. Add repository variable `VITE_API_BASE`.
+4. Set it to the deployed backend API URL, including `/api`:
 
 ```text
-https://helpdesk-api-production-5964.up.railway.app/api
+https://your-backend.example.com/api
 ```
 
-Push to `main` or run the workflow manually to deploy.
+Push to `main` or run the workflow manually.
 
-## 3. Local Production Checks
+## Local deployment checks
 
-Run these before deployment:
+Backend:
 
 ```powershell
-dotnet build backend
-npm --prefix frontend run build
+dotnet restore backend
+dotnet build backend --no-restore
+dotnet run --project backend --no-build --urls http://127.0.0.1:5088
+Invoke-RestMethod http://127.0.0.1:5088/healthz
 ```
 
-Optional Docker check:
+Frontend:
+
+```powershell
+npm install --prefix frontend
+npm --prefix frontend run lint
+npm --prefix frontend run build
+npm --prefix frontend run preview
+```
+
+Docker:
 
 ```powershell
 docker build -t helpdesk-api .
 docker run --rm -p 8080:8080 `
+  -e ASPNETCORE_ENVIRONMENT=Production `
+  -e DemoMode=false `
   -e Jwt__Secret="replace-with-a-long-random-secret-123456" `
   -e Cors__AllowedOrigins="http://localhost:5173" `
   -e ConnectionStrings__DefaultConnection="Data Source=/data/helpdesk.db" `
+  -e BootstrapAdmin__Email="admin@example.com" `
+  -e BootstrapAdmin__Password="ChangeMe-Strong-12345" `
   helpdesk-api
 ```
 
-## 4. Demo Credentials
+## Release checklist
 
-Seeded users:
-
-- Admin: `admin@helpdesk.local` / `Admin@123`
-- Agent: `agent@helpdesk.local` / `Agent@123`
-- User: `user@helpdesk.local` / `User@123`
-
-## 5. Deployment Checklist
-
-- Backend service builds from the root `Dockerfile`.
-- Railway deployment status is successful.
-- Backend `/healthz` returns `{"status":"ok"}`.
-- Backend `Jwt__Secret` is replaced with a real secret.
-- Backend `Cors__AllowedOrigins` matches the GitHub Pages origin.
-- Frontend repository variable `VITE_API_BASE` points to the hosted backend `/api`.
-- GitHub Pages workflow completes successfully.
-- Login, dashboard, tickets, reports, attachments, notifications, and AI status are smoke-tested.
+- Backend restore/build succeeds.
+- Frontend lint/build succeeds.
+- `/healthz` returns `status: ok`.
+- Production JWT secret is unique and at least 32 characters.
+- `DemoMode=false` for real production.
+- Bootstrap admin values are provided for first production startup.
+- CORS origin exactly matches the frontend origin.
+- `VITE_API_BASE` points to the deployed backend `/api`.
+- Login works for the intended account.
+- Tickets can be created, claimed/assigned, commented, updated, and exported.
+- Attachments upload/download works with permitted file types.
+- Notifications load and SignalR connection does not show console errors.
+- AI status gracefully reports configured or not configured.

@@ -18,27 +18,17 @@ public class TicketsController(
     INotificationService notificationService,
     IWebHostEnvironment environment) : ControllerBase
 {
-    private static readonly string[] Categories = ["Bug", "Feature Request", "Support", "Billing", "General"];
-    private static readonly string[] Priorities = ["Low", "Medium", "High", "Urgent"];
-    private static readonly string[] Statuses = ["Open", "Assigned", "In Progress", "Waiting for User", "Resolved", "Closed"];
     private static readonly string[] CommentVisibilities = ["Public", "Internal"];
-
-    private static readonly Dictionary<string, string[]> StatusTransitions = new()
-    {
-        ["Open"] = ["Assigned", "In Progress", "Closed"],
-        ["Assigned"] = ["In Progress", "Waiting for User", "Resolved", "Closed"],
-        ["In Progress"] = ["Waiting for User", "Resolved", "Closed"],
-        ["Waiting for User"] = ["In Progress", "Resolved", "Closed"],
-        ["Resolved"] = ["In Progress", "Closed"],
-        ["Closed"] = ["Open"]
-    };
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<TicketDto>>> GetTickets(
         [FromQuery] string? category,
         [FromQuery] string? status,
         [FromQuery] string? priority,
-        [FromQuery] int? assignedAgentId)
+        [FromQuery] int? assignedAgentId,
+        [FromQuery] string? search,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50)
     {
         var currentUserId = CurrentUserId();
         var role = CurrentRole();
@@ -47,7 +37,7 @@ public class TicketsController(
         tickets = role switch
         {
             "Admin" => tickets,
-            "Agent" => tickets.Where(ticket => ticket.AssignedAgentId == currentUserId),
+            "Agent" => tickets.Where(ticket => ticket.AssignedAgentId == currentUserId || ticket.AssignedAgentId == null),
             _ => tickets.Where(ticket => ticket.CreatorUserId == currentUserId)
         };
 
@@ -71,8 +61,27 @@ public class TicketsController(
             tickets = tickets.Where(ticket => ticket.AssignedAgentId == assignedAgentId);
         }
 
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            tickets = tickets.Where(ticket => ticket.Title.Contains(term) || ticket.Description.Contains(term));
+        }
+
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var total = await tickets.CountAsync();
+        Response.Headers["X-Pagination"] = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            page,
+            pageSize,
+            total,
+            totalPages = (int)Math.Ceiling(total / (double)pageSize)
+        });
+
         var ticketList = await tickets
             .OrderByDescending(ticket => ticket.CreatedAtUtc)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
         var result = ticketList.Select(ticket => ToDto(ticket, role));
 
@@ -230,11 +239,50 @@ public class TicketsController(
         return Ok(ToDto(await LoadTicketAsync(id), CurrentRole()));
     }
 
+    [HttpPost("{id:int}/claim")]
+    [Authorize(Policy = "AgentOrAdmin")]
+    public async Task<ActionResult<TicketDto>> ClaimTicket(int id)
+    {
+        var ticket = await db.Tickets.FindAsync(id);
+        if (ticket is null)
+        {
+            return NotFound();
+        }
+
+        if (CurrentRole() == "Agent" && ticket.AssignedAgentId.HasValue && ticket.AssignedAgentId != CurrentUserId())
+        {
+            return Conflict(new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Ticket already assigned",
+                Detail = "Another agent has already claimed this ticket."
+            });
+        }
+
+        var agentId = CurrentRole() == "Agent" ? CurrentUserId() : ticket.AssignedAgentId;
+        if (!agentId.HasValue)
+        {
+            return BadRequest(new { message = "Select an agent before claiming as an administrator." });
+        }
+
+        var now = DateTime.UtcNow;
+        ticket.AssignedAgentId = agentId.Value;
+        ticket.UpdatedAtUtc = now;
+        AddActivity(ticket.Id, CurrentUserId(), "TicketClaimed", null, agentId.Value.ToString(), "Ticket claimed by an agent.", now);
+        if (ticket.Status == "Open")
+        {
+            AddStatusChange(ticket, CurrentUserId(), "Assigned", now);
+        }
+
+        await db.SaveChangesAsync();
+        return Ok(ToDto(await LoadTicketAsync(id), CurrentRole()));
+    }
+
     [HttpPost("{id:int}/status")]
     [Authorize(Policy = "AgentOrAdmin")]
     public async Task<ActionResult<TicketDto>> UpdateStatus(int id, UpdateTicketStatusRequest request)
     {
-        if (!Statuses.Contains(request.Status))
+        if (!TicketWorkflow.Statuses.Contains(request.Status))
         {
             return BadRequest(new { message = "Invalid ticket status." });
         }
@@ -250,7 +298,7 @@ public class TicketsController(
             return Forbid();
         }
 
-        if (!CanTransition(ticket.Status, request.Status))
+        if (!TicketWorkflow.CanTransition(ticket.Status, request.Status))
         {
             return BadRequest(new { message = $"Cannot change status from {ticket.Status} to {request.Status}." });
         }
@@ -390,11 +438,11 @@ public class TicketsController(
 
     [HttpGet("/api/categories")]
     [AllowAnonymous]
-    public ActionResult<IEnumerable<string>> GetCategories() => Ok(Categories);
+    public ActionResult<IEnumerable<string>> GetCategories() => Ok(TicketWorkflow.Categories);
 
     [HttpGet("/api/statuses")]
     [AllowAnonymous]
-    public ActionResult<IEnumerable<string>> GetStatuses() => Ok(Statuses);
+    public ActionResult<IEnumerable<string>> GetStatuses() => Ok(TicketWorkflow.Statuses);
 
     [HttpGet("/api/users/agents")]
     [Authorize(Policy = "AdminOnly")]
@@ -414,7 +462,8 @@ public class TicketsController(
         .Include(ticket => ticket.AssignedAgent)
         .Include(ticket => ticket.Comments).ThenInclude(comment => comment.AuthorUser)
         .Include(ticket => ticket.ActivityLogs).ThenInclude(log => log.ActorUser)
-        .Include(ticket => ticket.StatusHistory).ThenInclude(history => history.ChangedByUser);
+        .Include(ticket => ticket.StatusHistory).ThenInclude(history => history.ChangedByUser)
+        .AsSplitQuery();
 
     private async Task<Ticket> LoadTicketAsync(int id)
     {
@@ -428,7 +477,7 @@ public class TicketsController(
         return CurrentRole() switch
         {
             "Admin" => true,
-            "Agent" => ticket.AssignedAgentId == currentUserId,
+            "Agent" => ticket.AssignedAgentId == currentUserId || ticket.AssignedAgentId == null,
             _ => ticket.CreatorUserId == currentUserId
         };
     }
@@ -445,12 +494,6 @@ public class TicketsController(
     }
 
     private bool IsStaff() => CurrentRole() is "Admin" or "Agent";
-
-    private static bool CanTransition(string oldStatus, string newStatus)
-    {
-        return oldStatus == newStatus ||
-            StatusTransitions.TryGetValue(oldStatus, out var allowed) && allowed.Contains(newStatus);
-    }
 
     private void AddStatusChange(Ticket ticket, int actorId, string newStatus, DateTime now)
     {
@@ -494,17 +537,17 @@ public class TicketsController(
             return new BadRequestObjectResult(new { message = "Title and description are required." });
         }
 
-        if (!Categories.Contains(request.Category))
+        if (!TicketWorkflow.Categories.Contains(request.Category))
         {
             return new BadRequestObjectResult(new { message = "Invalid ticket category." });
         }
 
-        if (!Priorities.Contains(request.Priority))
+        if (!TicketWorkflow.Priorities.Contains(request.Priority))
         {
             return new BadRequestObjectResult(new { message = "Invalid ticket priority." });
         }
 
-        if (allowStatus && !Statuses.Contains(request.Status))
+        if (allowStatus && !TicketWorkflow.Statuses.Contains(request.Status))
         {
             return new BadRequestObjectResult(new { message = "Invalid ticket status." });
         }

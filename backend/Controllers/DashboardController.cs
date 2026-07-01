@@ -125,7 +125,7 @@ public class DashboardController(AppDbContext db) : ControllerBase
         return CurrentRole() switch
         {
             "Admin" => db.Tickets.AsNoTracking(),
-            "Agent" => db.Tickets.AsNoTracking().Where(ticket => ticket.AssignedAgentId == currentUserId),
+            "Agent" => db.Tickets.AsNoTracking().Where(ticket => ticket.AssignedAgentId == currentUserId || ticket.AssignedAgentId == null),
             _ => db.Tickets.AsNoTracking().Where(ticket => ticket.CreatorUserId == currentUserId)
         };
     }

@@ -11,11 +11,16 @@ export function NotificationCenter({ open }) {
   }
 
   return (
-    <aside className="notificationCenter">
+    <aside
+      aria-labelledby="notifications-title"
+      aria-modal="false"
+      className="notificationCenter"
+      role="dialog"
+    >
       <div className="panelHeader">
         <div>
           <p className="eyebrow">Alerts</p>
-          <h2>Notifications</h2>
+          <h2 id="notifications-title">Notifications</h2>
         </div>
         <button className="ghostButton compactButton" onClick={() => markAllRead.mutate()} type="button">
           Read all

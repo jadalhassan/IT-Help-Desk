@@ -1,0 +1,28 @@
+# Operating system and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.user
+*.suo
+
+# .NET
+**/bin/
+**/obj/
+*.db
+*.db-shm
+*.db-wal
+Uploads/
+
+# Node / Vite
+**/node_modules/
+**/dist/
+**/.vite/
+*.log
+
+# Local environment and temporary QA output
+.env
+.env.*
+!.env.example
+tmp/
+

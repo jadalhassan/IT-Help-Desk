@@ -20,7 +20,10 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(data?.message ?? `${response.status} ${response.statusText}`);
+    const validationMessage = data?.errors
+      ? Object.values(data.errors).flat().join(' ')
+      : null;
+    throw new Error(data?.message ?? data?.detail ?? validationMessage ?? `${response.status} ${response.statusText}`);
   }
 
   return data;
@@ -90,6 +93,12 @@ export function assignTicket(id, agentUserId) {
   return request(`/tickets/${id}/assign`, {
     method: 'POST',
     body: JSON.stringify({ agentUserId }),
+  });
+}
+
+export function claimTicket(id) {
+  return request(`/tickets/${id}/claim`, {
+    method: 'POST',
   });
 }
 

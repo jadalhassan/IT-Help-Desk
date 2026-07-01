@@ -1,0 +1,42 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Length 582 >>
+stream
+BT /F1 10 Tf 36 552 Td 13 TL
+(IT Help Desk Ticket Report) Tj T*
+(Generated: 2026-06-23 14:53 UTC) Tj T*
+(Filters: none) Tj T*
+(Total: 3 | Open: 1 | Pending: 2 | Resolved: 1 | Closed: 0) Tj T*
+() Tj T*
+(ID | Title | Status | Priority | Category | Agent | Created | Resolved) Tj T*
+(1 | Cannot access email | Open | High | Support | Unassigned | 2026-06-23 | -) Tj T*
+(2 | Invoice export missing columns | In Progress | Medium | Billing | Support Agent | 2026-06-22 | -) Tj T*
+(3 | Add dark mode preference | Resolved | Low | Feature Request | Support Agent | 2026-06-20 | -) Tj T*
+ET
+endstream
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 5 0 R >> >> /Contents 3 0 R >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000000 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000748 00000 n 
+0000000874 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+944
+%%EOF

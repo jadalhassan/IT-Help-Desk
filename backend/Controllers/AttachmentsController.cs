@@ -16,27 +16,9 @@ namespace HelpDesk.Api.Controllers;
 public class AttachmentsController(
     AppDbContext db,
     IWebHostEnvironment environment,
-    INotificationService notificationService) : ControllerBase
+    INotificationService notificationService,
+    IUploadValidationService uploadValidation) : ControllerBase
 {
-    private const long MaxFileSize = 10 * 1024 * 1024;
-    private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".png", ".jpg", ".jpeg", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt"
-    };
-
-    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "image/png",
-        "image/jpeg",
-        "image/webp",
-        "application/pdf",
-        "application/msword",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "text/plain"
-    };
-
     [HttpGet]
     public async Task<ActionResult<IEnumerable<AttachmentDto>>> GetAttachments(
         [FromQuery] string relatedEntityType,
@@ -79,7 +61,7 @@ public class AttachmentsController(
     }
 
     [HttpPost("upload")]
-    [RequestSizeLimit(MaxFileSize)]
+    [RequestSizeLimit(25 * 1024 * 1024)]
     public async Task<ActionResult<AttachmentDto>> Upload(
         IFormFile file,
         [FromForm] string relatedEntityType,
@@ -87,20 +69,10 @@ public class AttachmentsController(
         [FromForm] string? description)
     {
         var entityType = NormalizeEntityType(relatedEntityType);
-        if (file.Length == 0)
+        var validationError = await uploadValidation.ValidateAsync(file, HttpContext.RequestAborted);
+        if (validationError is not null)
         {
-            return BadRequest(new { message = "File is required." });
-        }
-
-        if (file.Length > MaxFileSize)
-        {
-            return BadRequest(new { message = "File size must be 10 MB or less." });
-        }
-
-        var extension = Path.GetExtension(file.FileName);
-        if (!AllowedExtensions.Contains(extension) || !AllowedContentTypes.Contains(file.ContentType))
-        {
-            return BadRequest(new { message = "This file type is not allowed." });
+            return BadRequest(new { message = validationError });
         }
 
         if (!await CanAccessEntityAsync(entityType, relatedEntityId))
@@ -111,6 +83,7 @@ public class AttachmentsController(
         var uploadRoot = Path.Combine(environment.ContentRootPath, "Uploads");
         Directory.CreateDirectory(uploadRoot);
 
+        var extension = Path.GetExtension(file.FileName);
         var storedFileName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
         var storagePath = Path.Combine(uploadRoot, storedFileName);
 
@@ -279,7 +252,7 @@ public class AttachmentsController(
         return CurrentRole() switch
         {
             "Admin" => true,
-            "Agent" => ticket.AssignedAgentId == currentUserId,
+            "Agent" => ticket.AssignedAgentId == currentUserId || ticket.AssignedAgentId == null,
             _ => ticket.CreatorUserId == currentUserId
         };
     }

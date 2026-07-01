@@ -169,7 +169,7 @@ public class AiController(AppDbContext db, IAiService aiService) : ControllerBas
         return CurrentRole() switch
         {
             "Admin" => db.Tickets.AsNoTracking(),
-            "Agent" => db.Tickets.AsNoTracking().Where(ticket => ticket.AssignedAgentId == currentUserId),
+            "Agent" => db.Tickets.AsNoTracking().Where(ticket => ticket.AssignedAgentId == currentUserId || ticket.AssignedAgentId == null),
             _ => db.Tickets.AsNoTracking().Where(ticket => ticket.CreatorUserId == currentUserId)
         };
     }
@@ -180,7 +180,7 @@ public class AiController(AppDbContext db, IAiService aiService) : ControllerBas
         return CurrentRole() switch
         {
             "Admin" => true,
-            "Agent" => ticket.AssignedAgentId == currentUserId,
+            "Agent" => ticket.AssignedAgentId == currentUserId || ticket.AssignedAgentId == null,
             _ => ticket.CreatorUserId == currentUserId
         };
     }

@@ -1,14 +1,20 @@
 # IT Help Desk Ticket Management System
 
-A full-stack help desk application for creating, assigning, tracking, reporting, and resolving IT support tickets. The frontend is built with React and Vite, and the backend is an ASP.NET Core Web API with JWT authentication and SQLite by default.
+A full-stack help desk application for creating, triaging, assigning, tracking, reporting, and resolving IT support tickets. The project uses React + Vite on the frontend and ASP.NET Core Web API on the backend, with JWT authentication, SignalR notifications, SQLite for local/demo use, and optional PostgreSQL for production.
 
-## Live Demo
+## What it does
 
-- Website: `https://jadalhassan.github.io/IT-Help-Desk/`
-- API: `https://helpdesk-api-production-5964.up.railway.app`
-- Health check: `https://helpdesk-api-production-5964.up.railway.app/healthz`
+- Role-based workspaces for Admin, Agent, and User.
+- Ticket lifecycle: create, view, edit, claim, assign, prioritize, categorize, comment, attach files, change status, inspect history, notify users, report, and export.
+- Admin tools for broad visibility, assignment, deletion, dashboard analytics, and operational reports.
+- Agent queue with assigned and unassigned tickets, claim workflow, internal/public comments, status changes, attachments, and AI assistance.
+- User workspace for simple request submission, progress tracking, comments, and attachments.
+- Dashboard KPIs, status charts, activity trends, recent activity, reports, PDF export, and Excel export.
+- Optional AI assistance for categorization, priority recommendation, summaries, troubleshooting, and ticket-aware chat.
 
-Demo accounts:
+## Demo accounts
+
+Demo accounts are seeded only when `DemoMode=true` or the Development settings are used.
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -16,131 +22,121 @@ Demo accounts:
 | Agent | `agent@helpdesk.local` | `Agent@123` |
 | User | `user@helpdesk.local` | `User@123` |
 
-## Features
-
-- Ticket creation, editing, deletion, assignment, status updates, and comments.
-- Role-based workflows for admins, agents, and standard users.
-- Dashboard KPIs, status charts, activity trends, and recent activity.
-- Report workspace with filters, summary cards, charts, PDF export, and Excel export.
-- Attachments for ticket-related files.
-- Notifications with SignalR support.
-- Optional AI assistance for categorization, priority recommendations, summaries, troubleshooting steps, and ticket-aware chat.
-- Seeded demo users and starter tickets for local testing.
-
-## Tech Stack
+## Tech stack
 
 | Layer | Technology |
 | --- | --- |
-| Frontend | React, Vite, React Query, Recharts |
-| Backend | ASP.NET Core Web API, SignalR |
-| Auth | JWT bearer authentication, role policies |
+| Frontend | React, Vite, React Query, Recharts, SignalR client |
+| Backend | ASP.NET Core Web API, EF Core, SignalR |
+| Auth | JWT bearer auth, role policies, login rate limiting |
 | Database | SQLite by default, PostgreSQL optional |
-| Hosting | GitHub Pages frontend, Railway backend |
+| Deployment | GitHub Pages frontend, Docker/Railway/Render-capable backend |
 
-## Project Structure
+## Repository structure
 
 ```text
 IDS/
-  backend/
-    Controllers/
-    Data/
-    Dtos/
-    Hubs/
-    Models/
-    Services/
-    Dockerfile
-  frontend/
-    public/
-    src/
-      features/
-      App.jsx
-      api.js
-      index.css
-  .github/workflows/deploy-frontend-pages.yml
-  Dockerfile
-  railway.json
-  DEPLOYMENT.md
+  backend/                 ASP.NET Core API
+    Controllers/           HTTP endpoints
+    Data/                  EF Core context, seeding, schema initialization
+    Dtos/                  API request/response contracts
+    Hubs/                  SignalR notification hub
+    Models/                EF Core entities
+    Services/              Auth, notifications, reports, AI, uploads, workflow
+  frontend/                React/Vite client
+    src/features/          Feature-oriented UI modules
+  .github/workflows/       GitHub Pages deployment
+  Dockerfile               Root backend Docker build for Railway
+  railway.json             Railway service config
+  render.yaml              Render service example
+  DEPLOYMENT.md            Deployment checklist
+  DEMO.md                  Presentation/demo script
 ```
 
-## Prerequisites
+Generated folders such as `node_modules`, `dist`, `bin`, and `obj` are intentionally ignored.
+
+## Local setup
+
+Prerequisites:
 
 - .NET SDK 9
-- Node.js 20 or newer
+- Node.js 20+
 - Optional: Docker
-- Optional: PostgreSQL 16 or newer
-
-## Local Setup
-
-Run the backend:
-
-```powershell
-dotnet restore backend
-dotnet run --project backend --urls http://localhost:5000
-```
-
-Run the frontend from the project root:
-
-```powershell
-npm install --prefix frontend
-$env:VITE_API_BASE="http://localhost:5000/api"
-npm --prefix frontend run dev
-```
-
-Open:
-
-```text
-http://localhost:5173/IT-Help-Desk/
-```
-
-## Build Checks
+- Optional: PostgreSQL
 
 Backend:
 
 ```powershell
-dotnet build backend
+dotnet restore backend
+dotnet run --project backend --urls http://localhost:5088
 ```
 
 Frontend:
 
 ```powershell
-npm --prefix frontend run lint
-npm --prefix frontend run build
+npm install --prefix frontend
+$env:VITE_API_BASE="http://localhost:5088/api"
+npm --prefix frontend run dev
 ```
 
-## API Overview
+Open `http://localhost:5173/IT-Help-Desk/` or the URL printed by Vite.
 
-Main endpoints:
+## Configuration
+
+Important backend settings:
+
+```text
+ASPNETCORE_ENVIRONMENT=Production
+DemoMode=false
+DatabaseProvider=Sqlite
+ConnectionStrings__DefaultConnection=Data Source=/data/helpdesk.db
+Jwt__Issuer=HelpDesk.Api
+Jwt__Audience=HelpDesk.Frontend
+Jwt__Secret=<unique secret at least 32 characters>
+Cors__AllowedOrigins=https://your-frontend-origin.example
+Uploads__MaxFileSizeMb=10
+BootstrapAdmin__Email=admin@example.com
+BootstrapAdmin__Password=<strong initial password, at least 12 chars>
+BootstrapAdmin__FullName=System Administrator
+```
+
+Production startup rejects placeholder or short JWT secrets. If `DemoMode=false` and no users exist, provide the `BootstrapAdmin__*` values to create the first admin safely instead of seeding public demo passwords.
+
+Frontend:
+
+```text
+VITE_API_BASE=http://localhost:5088/api
+```
+
+## API overview
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | `POST` | `/api/auth/login` | Sign in and receive a JWT |
-| `GET` | `/api/tickets` | List visible tickets |
+| `GET` | `/api/tickets?search=&status=&priority=&category=&page=&pageSize=` | List visible tickets |
 | `GET` | `/api/tickets/{id}` | Get ticket details |
 | `POST` | `/api/tickets` | Create a ticket |
-| `PUT` | `/api/tickets/{id}` | Update a ticket |
-| `DELETE` | `/api/tickets/{id}` | Delete a ticket |
-| `POST` | `/api/tickets/{id}/assign` | Assign an agent |
-| `POST` | `/api/tickets/{id}/status` | Update ticket status |
-| `GET` | `/api/reports/tickets` | Get report data |
-| `GET` | `/api/reports/tickets/export/pdf` | Export report as PDF |
-| `GET` | `/api/reports/tickets/export/excel` | Export report as Excel |
-| `GET` | `/api/ai/status` | Check AI provider status |
+| `PUT` | `/api/tickets/{id}` | Update ticket title/category/priority/status |
+| `DELETE` | `/api/tickets/{id}` | Admin-only ticket deletion |
+| `POST` | `/api/tickets/{id}/assign` | Admin assigns an agent |
+| `POST` | `/api/tickets/{id}/claim` | Agent claims an unassigned ticket |
+| `POST` | `/api/tickets/{id}/status` | Admin/Agent status transition |
+| `POST` | `/api/tickets/{id}/comments` | Add public/internal comment |
+| `POST` | `/api/attachments/upload` | Upload a validated ticket attachment |
+| `GET` | `/api/dashboard/stats` | Dashboard KPI data |
+| `GET` | `/api/reports/tickets` | Report data |
+| `GET` | `/api/reports/tickets/export/pdf` | PDF export |
+| `GET` | `/api/reports/tickets/export/excel` | Excel export |
+| `GET` | `/api/ai/status` | AI provider status |
+| `GET` | `/healthz` | JSON health and database connectivity check |
 
-Valid priorities:
+Valid priorities: `Low`, `Medium`, `High`, `Urgent`.
 
-```text
-Low, Medium, High, Urgent
-```
+Valid statuses: `Open`, `Assigned`, `In Progress`, `Waiting for User`, `Resolved`, `Closed`.
 
-Valid statuses:
+## AI configuration
 
-```text
-Open, In Progress, Resolved, Closed
-```
-
-## AI Configuration
-
-AI features are configured only on the backend. No provider keys are exposed to the frontend.
+No AI key is exposed to the frontend. If no provider is configured, AI actions fail gracefully with a configuration message.
 
 OpenAI:
 
@@ -151,71 +147,32 @@ $env:OPENAI_MODEL="gpt-4.1-mini"
 dotnet run --project backend
 ```
 
-Azure OpenAI:
+Azure OpenAI and Ollama are also supported through the backend `AI_PROVIDER` settings.
+
+## Verification
 
 ```powershell
-$env:AI_PROVIDER="azure"
-$env:AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com"
-$env:AZURE_OPENAI_API_KEY="..."
-$env:AZURE_OPENAI_DEPLOYMENT="your-deployment"
-$env:AZURE_OPENAI_API_VERSION="2024-10-21"
-dotnet run --project backend
+dotnet restore backend
+dotnet build backend --no-restore
+dotnet test backend --no-restore
+npm install --prefix frontend
+npm --prefix frontend run lint
+npm --prefix frontend run build
 ```
 
-Ollama:
-
-```powershell
-$env:AI_PROVIDER="ollama"
-$env:OLLAMA_BASE_URL="http://localhost:11434"
-$env:OLLAMA_MODEL="llama3.1"
-dotnet run --project backend
-```
-
-If no AI provider is configured, the AI panel remains visible but requests return a configuration message.
+This repository currently has no backend test project, so `dotnet test backend --no-restore` is expected to report that no tests are available.
 
 ## Deployment
 
-The app is deployed as two services:
+See [DEPLOYMENT.md](DEPLOYMENT.md). In short:
 
-- Frontend: GitHub Pages
-- Backend: Railway Docker service
+- Backend builds from the root `Dockerfile`.
+- Railway uses `railway.json` and `/healthz`.
+- GitHub Pages builds `frontend/dist`.
+- `VITE_API_BASE` must point to the deployed backend `/api`.
+- CORS must include the deployed frontend origin.
+- Production must use a strong JWT secret and should not enable demo seeding.
 
-GitHub Pages builds `frontend/dist` using:
+## Design and QA artifacts
 
-```text
-.github/workflows/deploy-frontend-pages.yml
-```
-
-The repository variable `VITE_API_BASE` must point to the hosted backend API:
-
-```text
-https://helpdesk-api-production-5964.up.railway.app/api
-```
-
-Railway uses:
-
-```text
-Dockerfile
-railway.json
-```
-
-Required Railway variables:
-
-```text
-ASPNETCORE_ENVIRONMENT=Production
-DatabaseProvider=Sqlite
-ConnectionStrings__DefaultConnection=Data Source=/data/helpdesk.db
-Jwt__Issuer=HelpDesk.Api
-Jwt__Audience=HelpDesk.Frontend
-Jwt__Secret=<long random secret, at least 32 characters>
-Cors__AllowedOrigins=https://jadalhassan.github.io
-```
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for the full deployment checklist.
-
-## Notes
-
-- SQLite is created automatically and seeded on startup.
-- For production persistence on Railway, keep the database path under `/data`.
-- PostgreSQL can be used by setting `DatabaseProvider=Postgresql` and replacing `ConnectionStrings__DefaultConnection`.
-- The deployed frontend must be rebuilt after changing `VITE_API_BASE`.
+The repository includes ER/workflow diagrams, UI wireframes, screenshots, PDF, and spreadsheet QA artifacts. Treat the executable source code and this README as the current implementation source of truth; older diagrams are preserved as design/reference artifacts and may include future-state concepts that are not implemented one-for-one in EF Core.

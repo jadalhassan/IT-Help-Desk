@@ -44,6 +44,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasMaxLength(32);
 
         modelBuilder.Entity<Ticket>()
+            .HasIndex(x => new { x.Status, x.Priority, x.CreatedAtUtc });
+
+        modelBuilder.Entity<Ticket>()
+            .HasIndex(x => x.CreatorUserId);
+
+        modelBuilder.Entity<Ticket>()
+            .HasIndex(x => x.AssignedAgentId);
+
+        modelBuilder.Entity<Ticket>()
             .HasOne(x => x.CreatorUser)
             .WithMany()
             .HasForeignKey(x => x.CreatorUserId)
@@ -68,6 +77,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany()
             .HasForeignKey(x => x.ParentCommentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<TicketComment>()
+            .HasIndex(x => new { x.TicketId, x.CreatedAtUtc });
+
+        modelBuilder.Entity<ActivityLog>()
+            .HasIndex(x => new { x.TicketId, x.CreatedAtUtc });
+
+        modelBuilder.Entity<TicketStatusHistory>()
+            .HasIndex(x => new { x.TicketId, x.ChangedAtUtc });
 
         modelBuilder.Entity<ActivityLog>()
             .Property(x => x.ActionType)

@@ -10,13 +10,16 @@ export function NotificationBell() {
   return (
     <div className="notificationWrap">
       <button
-        aria-label="Open notifications"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={open ? 'Close notifications' : 'Open notifications'}
         className="notificationBell"
+        id="notification-button"
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        !
-        {count > 0 && <span>{count}</span>}
+        <span aria-hidden="true" className="bellGlyph">●</span>
+        {count > 0 && <span aria-label={`${count} unread notifications`}>{count}</span>}
       </button>
       <NotificationCenter open={open} />
     </div>

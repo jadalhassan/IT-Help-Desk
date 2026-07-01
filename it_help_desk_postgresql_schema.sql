@@ -1,6 +1,12 @@
 -- ============================================================
 -- IT Help Desk & Ticketing Management System
 -- PostgreSQL Database Schema
+--
+-- Reference artifact:
+-- The live ASP.NET Core application currently uses the EF Core model under
+-- backend/Models and backend/Data/AppDbContext.cs as the executable schema.
+-- This SQL file is preserved as a normalized PostgreSQL design/reference
+-- artifact for database documentation and future migration planning.
 -- ============================================================
 
 DROP TABLE IF EXISTS activity_logs CASCADE;

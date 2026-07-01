@@ -2,6 +2,7 @@ using HelpDesk.Api.Data;
 using HelpDesk.Api.Dtos;
 using HelpDesk.Api.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace HelpDesk.Api.Controllers;
@@ -11,8 +12,15 @@ namespace HelpDesk.Api.Controllers;
 public class AuthController(AppDbContext db, ITokenService tokenService) : ControllerBase
 {
     [HttpPost("login")]
+    [EnableRateLimiting("login")]
     public async Task<ActionResult<LoginResponse>> Login([FromBody] LoginRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            ModelState.AddModelError("credentials", "Email and password are required.");
+            return ValidationProblem(ModelState);
+        }
+
         var email = request.Email.Trim().ToLowerInvariant();
         var user = await db.Users.SingleOrDefaultAsync(x => x.Email == email);
 

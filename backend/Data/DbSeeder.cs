@@ -8,13 +8,40 @@ public static class DbSeeder
 {
     private static readonly string[] Categories = ["Bug", "Feature Request", "Support", "Billing", "General"];
 
-    public static async Task SeedAsync(AppDbContext db)
+    public static async Task SeedAsync(AppDbContext db, IConfiguration configuration, ILogger logger)
     {
         await EnsureSchemaAsync(db);
 
         if (await db.Users.AnyAsync())
         {
             await SeedTicketsAsync(db);
+            return;
+        }
+
+        if (!configuration.GetValue<bool>("DemoMode"))
+        {
+            var email = configuration["BootstrapAdmin:Email"]?.Trim().ToLowerInvariant();
+            var password = configuration["BootstrapAdmin:Password"];
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+            {
+                logger.LogWarning("No users exist. Configure BootstrapAdmin__Email and BootstrapAdmin__Password to create the first administrator.");
+                return;
+            }
+
+            if (password.Length < 12)
+            {
+                throw new InvalidOperationException("Bootstrap administrator password must contain at least 12 characters.");
+            }
+
+            db.Users.Add(new User
+            {
+                FullName = configuration["BootstrapAdmin:FullName"]?.Trim() ?? "System Administrator",
+                Email = email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                Role = "Admin"
+            });
+            await db.SaveChangesAsync();
+            logger.LogInformation("Created the bootstrap administrator account.");
             return;
         }
 

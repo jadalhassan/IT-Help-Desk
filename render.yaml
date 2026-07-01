@@ -8,6 +8,8 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      - key: DemoMode
+        value: "false"
       - key: DatabaseProvider
         value: Sqlite
       - key: ConnectionStrings__DefaultConnection
@@ -20,6 +22,14 @@ services:
         sync: false
       - key: Cors__AllowedOrigins
         sync: false
+      - key: Uploads__MaxFileSizeMb
+        value: "10"
+      - key: BootstrapAdmin__Email
+        sync: false
+      - key: BootstrapAdmin__Password
+        sync: false
+      - key: BootstrapAdmin__FullName
+        value: System Administrator
     disk:
       name: helpdesk-data
       mountPath: /var/data

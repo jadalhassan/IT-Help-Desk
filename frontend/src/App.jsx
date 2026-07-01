@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   addTicketComment,
   assignTicket,
+  claimTicket,
   createTicket,
   deleteTicket,
   getAgents,
@@ -16,11 +17,12 @@ import {
 } from './api';
 import { AttachmentList } from './features/attachments/components/AttachmentList';
 import { AiAssistantPanel } from './features/ai/components/AiAssistantPanel';
-import { DashboardPage } from './features/dashboard/pages/DashboardPage';
 import { NotificationBell } from './features/notifications/components/NotificationBell';
-import { ReportsPage } from './features/reports/pages/ReportsPage';
 import { useSignalRNotifications } from './features/notifications/hooks/useSignalRNotifications';
 import './index.css';
+
+const DashboardPage = lazy(() => import('./features/dashboard/pages/DashboardPage').then((module) => ({ default: module.DashboardPage })));
+const ReportsPage = lazy(() => import('./features/reports/pages/ReportsPage').then((module) => ({ default: module.ReportsPage })));
 
 const emptyTicket = {
   title: '',
@@ -44,7 +46,7 @@ function statusClass(status) {
 }
 
 function LoginPanel({ onLogin }) {
-  const [form, setForm] = useState({ email: 'admin@helpdesk.local', password: 'Admin@123' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -67,9 +69,22 @@ function LoginPanel({ onLogin }) {
 
   return (
     <main className="loginShell">
+      <section className="loginHero" aria-label="Product overview">
+        <p className="eyebrow">HelpDesk Pro</p>
+        <h1>Run IT support like a polished service desk.</h1>
+        <p>
+          Triage requests, assign agents, track lifecycle history, notify stakeholders,
+          export reports, and use AI assistance without losing control of the workflow.
+        </p>
+        <div className="heroStats">
+          <span><strong>JWT</strong> secured</span>
+          <span><strong>SignalR</strong> live updates</span>
+          <span><strong>Role-based</strong> workspaces</span>
+        </div>
+      </section>
       <form className="panel loginPanel" onSubmit={handleSubmit}>
         <p className="eyebrow">IT Help Desk</p>
-        <h1>Ticket Management</h1>
+        <h2>Sign in to your workspace</h2>
         <label>
           Email
           <input
@@ -90,17 +105,26 @@ function LoginPanel({ onLogin }) {
             value={form.password}
           />
         </label>
-        {error && <p className="inlineError">{error}</p>}
+        {error && <p className="inlineError" role="alert">{error}</p>}
         <button className="primaryButton" disabled={saving} type="submit">
           {saving ? 'Signing in...' : 'Sign In'}
         </button>
-        <p className="muted compact">
-          Admin: admin@helpdesk.local / Admin@123
-          <br />
-          Agent: agent@helpdesk.local / Agent@123
-          <br />
-          User: user@helpdesk.local / User@123
-        </p>
+        <div className="demoAccounts" aria-label="Demo accounts">
+          {[
+            ['Admin', 'admin@helpdesk.local', 'Admin@123'],
+            ['Agent', 'agent@helpdesk.local', 'Agent@123'],
+            ['User', 'user@helpdesk.local', 'User@123'],
+          ].map(([role, email, password]) => (
+            <button
+              className="ghostButton compactButton"
+              key={role}
+              onClick={() => setForm({ email, password })}
+              type="button"
+            >
+              Use {role}
+            </button>
+          ))}
+        </div>
       </form>
     </main>
   );
@@ -134,6 +158,19 @@ function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving, use
       setForm({ ...emptyTicket, category: categories[0] ?? emptyTicket.category });
     }
   };
+
+  if (userRole === 'Agent' && !editingTicket) {
+    return (
+      <aside className="panel formPanel">
+        <p className="eyebrow">Agent queue</p>
+        <h2>Claim and resolve</h2>
+        <p className="muted">
+          Agents can claim unassigned tickets, update status, add notes, and attach evidence.
+          New requests are created by users or admins.
+        </p>
+      </aside>
+    );
+  }
 
   return (
     <form className="panel formPanel" onSubmit={handleSubmit}>
@@ -183,9 +220,9 @@ function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving, use
         </label>
       </div>
 
-      {formError && <p className="inlineError">{formError}</p>}
+      {formError && <p className="inlineError" role="alert">{formError}</p>}
 
-      <button className="primaryButton" disabled={saving || (userRole === 'Agent' && !editingTicket)} type="submit">
+      <button className="primaryButton" disabled={saving} type="submit">
         {saving ? 'Saving...' : editingTicket ? 'Update Ticket' : 'Create Ticket'}
       </button>
     </form>
@@ -195,6 +232,14 @@ function TicketForm({ categories, editingTicket, onCancel, onSubmit, saving, use
 function TicketFilters({ categories, statuses, filters, onChange }) {
   return (
     <div className="filterGrid">
+      <label>
+        Search
+        <input
+          placeholder="Title, description, requester..."
+          value={filters.search}
+          onChange={(event) => onChange({ ...filters, search: event.target.value })}
+        />
+      </label>
       <label>
         Category
         <select value={filters.category} onChange={(event) => onChange({ ...filters, category: event.target.value })}>
@@ -255,7 +300,7 @@ function TicketList({ tickets, selectedTicket, onDelete, onEdit, onSelect, userR
   );
 }
 
-function TicketDetail({ agents, onAssign, onComment, onStatusChange, statuses, ticket, userRole }) {
+function TicketDetail({ agents, onAssign, onClaim, onComment, onStatusChange, statuses, ticket, userRole }) {
   const [agentId, setAgentId] = useState('');
   const [status, setStatus] = useState('');
   const [comment, setComment] = useState({ content: '', visibility: 'Public' });
@@ -319,6 +364,19 @@ function TicketDetail({ agents, onAssign, onComment, onStatusChange, statuses, t
           </label>
           <button className="primaryButton" disabled={!agentId} onClick={() => onAssign(ticket.id, Number(agentId))} type="button">
             Assign
+          </button>
+        </div>
+      )}
+
+      {userRole === 'Agent' && !ticket.assignedAgentId && (
+        <div className="actionPanel highlightAction">
+          <div>
+            <p className="eyebrow">Unassigned ticket</p>
+            <strong>Ready to claim</strong>
+            <p className="muted compact">Taking ownership records assignment history and moves the ticket into active work.</p>
+          </div>
+          <button className="primaryButton" onClick={() => onClaim(ticket.id)} type="button">
+            Claim Ticket
           </button>
         </div>
       )}
@@ -421,7 +479,7 @@ export default function App() {
   const [categories, setCategories] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [agents, setAgents] = useState([]);
-  const [filters, setFilters] = useState({ category: 'All', status: 'All', priority: 'All' });
+  const [filters, setFilters] = useState({ search: '', category: 'All', status: 'All', priority: 'All' });
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [editingTicket, setEditingTicket] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -434,6 +492,7 @@ export default function App() {
     total: tickets.length,
     open: tickets.filter((ticket) => ticket.status === 'Open').length,
     assigned: tickets.filter((ticket) => ticket.assignedAgentId).length,
+    unassigned: tickets.filter((ticket) => !ticket.assignedAgentId).length,
     urgent: tickets.filter((ticket) => ticket.priority === 'Urgent').length,
   }), [tickets]);
 
@@ -556,13 +615,14 @@ export default function App() {
           <span>{metrics.total} total</span>
           <span>{metrics.open} open</span>
           <span>{metrics.assigned} assigned</span>
+          <span>{metrics.unassigned} unassigned</span>
           <span>{metrics.urgent} urgent</span>
           <NotificationBell />
           <button className="ghostButton" onClick={handleLogout} type="button">Sign Out</button>
         </div>
       </header>
 
-      {(message || error) && <div className={error ? 'alert error' : 'alert success'}>{error || message}</div>}
+      {(message || error) && <div className={error ? 'alert error' : 'alert success'} role="status" aria-live="polite">{error || message}</div>}
 
       <nav className="viewTabs" aria-label="Workspace views">
         <button className={activeView === 'tickets' ? 'active' : ''} onClick={() => setActiveView('tickets')} type="button">
@@ -577,9 +637,13 @@ export default function App() {
       </nav>
 
       {activeView === 'dashboard' ? (
-        <DashboardPage />
+        <Suspense fallback={<div className="panel routeFallback">Loading dashboard analytics...</div>}>
+          <DashboardPage />
+        </Suspense>
       ) : activeView === 'reports' ? (
-        <ReportsPage />
+        <Suspense fallback={<div className="panel routeFallback">Loading reporting workspace...</div>}>
+          <ReportsPage />
+        </Suspense>
       ) : (
         <section className="workspace">
           <TicketForm
@@ -621,6 +685,7 @@ export default function App() {
           <TicketDetail
             agents={agents}
             onAssign={async (ticketId, agentId) => refreshAfterChange(await assignTicket(ticketId, agentId), 'Ticket assigned successfully.')}
+            onClaim={async (ticketId) => refreshAfterChange(await claimTicket(ticketId), 'Ticket claimed successfully.')}
             onComment={async (ticketId, comment) => {
               await addTicketComment(ticketId, comment);
               return refreshAfterChange(await getTicket(ticketId), 'Comment added successfully.');
