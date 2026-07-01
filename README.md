@@ -88,6 +88,7 @@ Important backend settings:
 ```text
 ASPNETCORE_ENVIRONMENT=Production
 DemoMode=false
+DisableDemoAccounts=true
 DatabaseProvider=Sqlite
 ConnectionStrings__DefaultConnection=Data Source=/data/helpdesk.db
 Jwt__Issuer=HelpDesk.Api
@@ -100,7 +101,7 @@ BootstrapAdmin__Password=<strong initial password, at least 12 chars>
 BootstrapAdmin__FullName=System Administrator
 ```
 
-Production startup rejects placeholder or short JWT secrets. If `DemoMode=false` and no users exist, provide the `BootstrapAdmin__*` values to create the first admin safely instead of seeding public demo passwords.
+Production startup warns when a placeholder JWT secret is used and falls back to an ephemeral startup secret so public demos do not crash; configure a stable `Jwt__Secret` for real deployments. Public demo accounts are enabled unless `DisableDemoAccounts=true`. For real production, set `DisableDemoAccounts=true`, `DemoMode=false`, and provide the `BootstrapAdmin__*` values to create the first admin safely.
 
 Frontend:
 

@@ -12,7 +12,7 @@ public static class DbSeeder
     {
         await EnsureSchemaAsync(db);
 
-        if (configuration.GetValue<bool>("DemoMode"))
+        if (!configuration.GetValue<bool>("DisableDemoAccounts"))
         {
             await EnsureDemoUsersAsync(db, logger);
             await SeedTicketsAsync(db);
