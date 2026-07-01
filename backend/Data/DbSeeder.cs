@@ -12,68 +12,75 @@ public static class DbSeeder
     {
         await EnsureSchemaAsync(db);
 
+        if (configuration.GetValue<bool>("DemoMode"))
+        {
+            await EnsureDemoUsersAsync(db, logger);
+            await SeedTicketsAsync(db);
+            return;
+        }
+
         if (await db.Users.AnyAsync())
         {
             await SeedTicketsAsync(db);
             return;
         }
 
-        if (!configuration.GetValue<bool>("DemoMode"))
+        var email = configuration["BootstrapAdmin:Email"]?.Trim().ToLowerInvariant();
+        var password = configuration["BootstrapAdmin:Password"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         {
-            var email = configuration["BootstrapAdmin:Email"]?.Trim().ToLowerInvariant();
-            var password = configuration["BootstrapAdmin:Password"];
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
-            {
-                logger.LogWarning("No users exist. Configure BootstrapAdmin__Email and BootstrapAdmin__Password to create the first administrator.");
-                return;
-            }
-
-            if (password.Length < 12)
-            {
-                throw new InvalidOperationException("Bootstrap administrator password must contain at least 12 characters.");
-            }
-
-            db.Users.Add(new User
-            {
-                FullName = configuration["BootstrapAdmin:FullName"]?.Trim() ?? "System Administrator",
-                Email = email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
-                Role = "Admin"
-            });
-            await db.SaveChangesAsync();
-            logger.LogInformation("Created the bootstrap administrator account.");
+            logger.LogWarning("No users exist. Configure BootstrapAdmin__Email and BootstrapAdmin__Password to create the first administrator.");
             return;
         }
 
-        var users = new List<User>
+        if (password.Length < 12)
         {
-            new()
-            {
-                FullName = "System Admin",
-                Email = "admin@helpdesk.local",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-                Role = "Admin"
-            },
-            new()
-            {
-                FullName = "Support Agent",
-                Email = "agent@helpdesk.local",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Agent@123"),
-                Role = "Agent"
-            },
-            new()
-            {
-                FullName = "Standard User",
-                Email = "user@helpdesk.local",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("User@123"),
-                Role = "User"
-            }
-        };
+            throw new InvalidOperationException("Bootstrap administrator password must contain at least 12 characters.");
+        }
 
-        db.Users.AddRange(users);
+        db.Users.Add(new User
+        {
+            FullName = configuration["BootstrapAdmin:FullName"]?.Trim() ?? "System Administrator",
+            Email = email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Role = "Admin"
+        });
         await db.SaveChangesAsync();
+        logger.LogInformation("Created the bootstrap administrator account.");
+    }
 
-        await SeedTicketsAsync(db);
+    private static async Task EnsureDemoUsersAsync(AppDbContext db, ILogger logger)
+    {
+        await UpsertDemoUserAsync(db, "System Admin", "admin@helpdesk.local", "Admin@123", "Admin");
+        await UpsertDemoUserAsync(db, "Support Agent", "agent@helpdesk.local", "Agent@123", "Agent");
+        await UpsertDemoUserAsync(db, "Standard User", "user@helpdesk.local", "User@123", "User");
+        await db.SaveChangesAsync();
+        logger.LogInformation("Demo accounts are available.");
+    }
+
+    private static async Task UpsertDemoUserAsync(
+        AppDbContext db,
+        string fullName,
+        string email,
+        string password,
+        string role)
+    {
+        var user = await db.Users.SingleOrDefaultAsync(item => item.Email == email);
+        if (user is null)
+        {
+            db.Users.Add(new User
+            {
+                FullName = fullName,
+                Email = email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                Role = role
+            });
+            return;
+        }
+
+        user.FullName = fullName;
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(password);
+        user.Role = role;
     }
 
     private static async Task EnsureSchemaAsync(AppDbContext db)
