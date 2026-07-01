@@ -45,7 +45,7 @@ function statusClass(status) {
   return status.replace(/\s+/g, '').toLowerCase();
 }
 
-function LoginPanel({ onLogin }) {
+function LoginPanel({ notice, onLogin }) {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -85,6 +85,7 @@ function LoginPanel({ onLogin }) {
       <form className="panel loginPanel" onSubmit={handleSubmit}>
         <p className="eyebrow">IT Help Desk</p>
         <h2>Sign in to your workspace</h2>
+        {notice && <p className="alert warning" role="status">{notice}</p>}
         <label>
           Email
           <input
@@ -486,7 +487,24 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [loginNotice, setLoginNotice] = useState('');
   useSignalRNotifications(Boolean(session));
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      localStorage.removeItem('helpdesk_token');
+      localStorage.removeItem('helpdesk_user');
+      queryClient.clear();
+      setSession(null);
+      setTickets([]);
+      setSelectedTicket(null);
+      setEditingTicket(null);
+      setLoginNotice('Your previous session expired after the deployment. Please sign in again.');
+    };
+
+    window.addEventListener('helpdesk:auth-expired', handleAuthExpired);
+    return () => window.removeEventListener('helpdesk:auth-expired', handleAuthExpired);
+  }, [queryClient]);
 
   const metrics = useMemo(() => ({
     total: tickets.length,
@@ -601,7 +619,10 @@ export default function App() {
   };
 
   if (!session) {
-    return <LoginPanel onLogin={setSession} />;
+    return <LoginPanel notice={loginNotice} onLogin={(nextSession) => {
+      setLoginNotice('');
+      setSession(nextSession);
+    }} />;
   }
 
   return (

@@ -869,6 +869,11 @@ textarea:focus {
   color: #17613a;
 }
 
+.alert.warning {
+  background: #fff6d7;
+  color: #7a4f00;
+}
+
 .alert.error,
 .inlineError {
   background: #fff1f0;

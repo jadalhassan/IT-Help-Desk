@@ -20,10 +20,13 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      window.dispatchEvent(new CustomEvent('helpdesk:auth-expired'));
+    }
     const validationMessage = data?.errors
       ? Object.values(data.errors).flat().join(' ')
       : null;
-    throw new Error(data?.message ?? data?.detail ?? validationMessage ?? `${response.status} ${response.statusText}`);
+    throw new Error(data?.message ?? data?.detail ?? validationMessage ?? (response.status === 401 ? 'Your session expired. Please sign in again.' : `${response.status} ${response.statusText}`));
   }
 
   return data;
